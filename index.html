@@ -1,0 +1,2159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+<title>Photo Measurement Tool</title>
+<style>
+  :root{
+    --bg: rgba(14, 15, 18, 0.95);
+    --panel: rgba(21, 24, 33, 0.9);
+    --muted: rgba(39, 43, 54, 0.8);
+    --text: #e8ecf1;
+    --sub: #b6c0cf;
+    --accent: #69b3ff;
+    --danger: #ff6b6b;
+    --ok: #52d273;
+    --overlay: rgba(0, 0, 0, 0.7);
+  }
+  
+  * { box-sizing: border-box; }
+  html, body { 
+    height: 100%; 
+    margin: 0; 
+    padding: 0;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+  }
+  
+  body {
+    background: #0e0f12;
+    color: var(--text);
+    position: relative;
+  }
+
+  /* Main canvas area - full screen */
+  .main {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #0a0b0e;
+  }
+
+  #canvasContainer {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+  }
+
+  #imageCanvas, #drawCanvas {
+    position: absolute;
+    max-width: 100vw;
+    max-height: 100vh;
+  }
+  
+  #imageCanvas {
+    background: #0b0e13;
+    z-index: 1;
+  }
+  
+  #drawCanvas {
+    background: transparent;
+    z-index: 2;
+    touch-action: none;
+  }
+
+  /* Floating menu button */
+  .menu-btn {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: var(--panel);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--muted);
+    color: var(--text);
+    font-size: 20px;
+    cursor: pointer;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s ease;
+  }
+
+  .menu-btn:hover {
+    background: var(--accent);
+    color: #000;
+    transform: scale(1.05);
+  }
+
+  /* Slide-out menu */
+  .slide-menu {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 320px;
+    height: 100vh;
+    background: var(--panel);
+    backdrop-filter: blur(20px);
+    border-left: 1px solid var(--muted);
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+    z-index: 200;
+    overflow-y: auto;
+    padding: 80px 20px 20px;
+  }
+
+  .slide-menu.open {
+    transform: translateX(0);
+  }
+
+  .menu-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: var(--overlay);
+    backdrop-filter: blur(2px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    z-index: 150;
+  }
+
+  .menu-overlay.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Menu sections */
+  .menu-section {
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--muted);
+  }
+
+  .menu-section:last-child {
+    border-bottom: none;
+  }
+
+  .menu-section h3 {
+    margin: 0 0 15px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .menu-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .menu-row:last-child {
+    margin-bottom: 0;
+  }
+
+  /* Buttons */
+  .btn {
+    padding: 12px 16px;
+    border: 1px solid var(--muted);
+    border-radius: 8px;
+    background: var(--muted);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    text-align: center;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .btn:hover, .btn:active {
+    background: var(--accent);
+    color: #000;
+    transform: translateY(-1px);
+  }
+
+  .btn.active {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+  }
+
+  .btn.danger {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: #fff;
+  }
+
+  .btn.ok {
+    background: var(--ok);
+    border-color: var(--ok);
+    color: #000;
+  }
+
+  .btn-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .btn-group.three {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  .btn-full {
+    width: 100%;
+  }
+
+  /* Inputs */
+  .input {
+    padding: 12px;
+    border: 1px solid var(--muted);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    color: var(--text);
+    font-size: 14px;
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(105, 179, 255, 0.2);
+  }
+
+  .input-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .input-group.four {
+    grid-template-columns: 1fr 1fr 1fr 80px;
+  }
+
+  /* Color palette */
+  .color-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .color-swatch {
+    width: 100%;
+    height: 40px;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .color-swatch.selected {
+    border-color: var(--accent);
+    transform: scale(1.1);
+    box-shadow: 0 0 0 2px rgba(105, 179, 255, 0.3);
+  }
+
+  /* Range slider */
+  .slider-container {
+    width: 100%;
+  }
+
+  .slider {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--muted);
+    outline: none;
+    -webkit-appearance: none;
+  }
+
+  .slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+
+  /* Radio groups */
+  .radio-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .radio-option {
+    position: relative;
+    cursor: pointer;
+  }
+
+  .radio-option input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .radio-option .radio-label {
+    display: block;
+    padding: 12px;
+    border: 1px solid var(--muted);
+    border-radius: 8px;
+    background: var(--muted);
+    color: var(--text);
+    text-align: center;
+    transition: all 0.2s ease;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .radio-option input:checked + .radio-label {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+  }
+
+  /* Chips */
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .chip {
+    background: rgba(27, 31, 42, 0.8);
+    border: 1px solid var(--muted);
+    padding: 8px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease;
+  }
+
+  .chip:hover {
+    background: var(--accent);
+    color: #000;
+  }
+
+  /* Bottom toolbar */
+  .toolbar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--panel);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid var(--muted);
+    padding: 12px 20px;
+    z-index: 90;
+  }
+
+  .toolbar-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 80px 80px;
+    gap: 10px;
+    align-items: center;
+  }
+
+  /* Zoom controls */
+  .zoom-controls {
+    position: fixed;
+    bottom: 100px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 80;
+  }
+
+  .zoom-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--panel);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--muted);
+    color: var(--text);
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease;
+  }
+
+  .zoom-btn:hover {
+    background: var(--accent);
+    color: #000;
+    transform: scale(1.05);
+  }
+
+  /* Modal */
+  .modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: var(--overlay);
+    backdrop-filter: blur(5px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 999;
+    padding: 20px;
+  }
+
+  .modal.hidden {
+    display: none;
+  }
+
+  .modal-content {
+    background: var(--panel);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--muted);
+    border-radius: 12px;
+    padding: 24px;
+    width: 100%;
+    max-width: 400px;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+
+  .modal h3 {
+    margin: 0 0 20px 0;
+    font-size: 18px;
+    color: var(--accent);
+  }
+
+  .modal label {
+    display: block;
+    margin: 0 0 6px 0;
+    font-size: 12px;
+    color: var(--sub);
+    font-weight: 500;
+  }
+
+  .hint {
+    color: var(--sub);
+    font-size: 11px;
+    margin-top: 8px;
+    line-height: 1.4;
+  }
+
+  .hidden { display: none !important; }
+
+  /* Responsive */
+  @media (max-width: 480px) {
+    .slide-menu {
+      width: 100vw;
+      padding: 60px 15px 15px;
+    }
+    
+    .zoom-controls {
+      bottom: 120px;
+      right: 15px;
+    }
+    
+    .toolbar {
+      padding: 10px 15px;
+    }
+    
+    .toolbar-grid {
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 8px;
+    }
+  }
+</style>
+</head>
+<body>
+  <!-- Main canvas area -->
+  <main class="main">
+    <div id="canvasContainer">
+      <canvas id="imageCanvas"></canvas>
+      <canvas id="drawCanvas"></canvas>
+    </div>
+  </main>
+
+  <!-- Floating menu button -->
+  <button class="menu-btn" id="menuBtn">☰</button>
+
+  <!-- Menu overlay -->
+  <div class="menu-overlay" id="menuOverlay"></div>
+
+  <!-- Slide-out menu -->
+  <div class="slide-menu" id="slideMenu">
+    <!-- File Operations -->
+    <div class="menu-section">
+      <h3>File</h3>
+      <input id="fileInput" type="file" accept="image/*" class="hidden" />
+      <div class="btn-group">
+        <button class="btn" id="chooseBtn">Gallery</button>
+        <button class="btn" id="cameraBtn">Camera</button>
+      </div>
+      <div class="menu-row">
+        <input class="input" id="projectInput" type="text" placeholder="Project Name" />
+      </div>
+      <div class="menu-row">
+        <input class="input" id="areaInput" type="text" placeholder="Area/Room" />
+      </div>
+    </div>
+
+    <!-- Tools -->
+    <div class="menu-section">
+      <h3>Tools</h3>
+      <div class="btn-group three">
+        <button class="btn active" id="toolDraw">Draw</button>
+        <button class="btn" id="toolSelect">Select</button>
+        <button class="btn" id="toolRecolor">Color</button>
+      </div>
+      <div class="btn-group" style="margin-top: 10px;">
+        <button class="btn danger" id="deleteBtn">Delete</button>
+        <button class="btn" id="undoBtn">Undo</button>
+      </div>
+    </div>
+
+    <!-- Colors -->
+    <div class="menu-section">
+      <h3>Colors</h3>
+      <div class="color-grid" id="colorGrid"></div>
+    </div>
+
+    <!-- Line Style -->
+    <div class="menu-section">
+      <h3>Line Style</h3>
+      <div class="menu-row">
+        <label>Width: <span id="widthDisplay">3</span></label>
+      </div>
+      <div class="slider-container">
+        <input class="slider" id="widthSlider" type="range" min="1" max="12" value="3" />
+      </div>
+      <div class="radio-group" style="margin-top: 15px;">
+        <div class="radio-option">
+          <input type="radio" name="endcap" value="arrow" id="capArrow" checked />
+          <label class="radio-label" for="capArrow">Arrows</label>
+        </div>
+        <div class="radio-option">
+          <input type="radio" name="endcap" value="circle" id="capCircle" />
+          <label class="radio-label" for="capCircle">Circles</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Measurements -->
+    <div class="menu-section">
+      <h3>Measurements</h3>
+      <div class="radio-group">
+        <div class="radio-option">
+          <input type="radio" name="units" value="imperial" id="unitsImperial" checked />
+          <label class="radio-label" for="unitsImperial">Imperial</label>
+        </div>
+        <div class="radio-option">
+          <input type="radio" name="units" value="metric" id="unitsMetric" />
+          <label class="radio-label" for="unitsMetric">Metric</label>
+        </div>
+      </div>
+
+      <!-- Imperial inputs -->
+      <div id="imperialInputs">
+        <div class="input-group four" style="margin-top: 15px;">
+          <input class="input" id="ftInput" type="number" placeholder="ft" />
+          <input class="input" id="inInput" type="number" placeholder="in" />
+          <input class="input" id="numInput" type="number" placeholder="num" />
+          <select class="input" id="fracSelect">
+            <option value="2">/2</option>
+            <option value="4">/4</option>
+            <option value="8" selected>/8</option>
+            <option value="16">/16</option>
+            <option value="32">/32</option>
+          </select>
+        </div>
+        <button class="btn ok btn-full" id="applyImperialBtn" style="margin-top: 10px;">Apply Measurement</button>
+      </div>
+
+      <!-- Metric inputs -->
+      <div id="metricInputs" class="hidden">
+        <div class="menu-row" style="margin-top: 15px;">
+          <input class="input" id="mmInput" type="number" placeholder="mm" style="flex: 1;" />
+          <button class="btn ok" id="applyMetricBtn">Apply</button>
+        </div>
+      </div>
+
+      <!-- Inbox -->
+      <div style="margin-top: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <span style="font-size: 12px; color: var(--sub);">Inbox</span>
+          <button class="btn" id="clearInboxBtn" style="padding: 4px 8px; font-size: 11px;">Clear</button>
+        </div>
+        <div class="chips" id="inbox"></div>
+        <div class="hint">Tap measurement to apply to selected line</div>
+      </div>
+    </div>
+
+    <!-- Bluetooth -->
+    <div class="menu-section">
+      <h3>Bluetooth Laser</h3>
+      <div class="menu-row">
+        <select class="input" id="deviceSelect">
+          <option value="auto">Auto-detect</option>
+          <option value="leica">Leica Devices</option>
+          <option value="bosch">Bosch GLM</option>
+        </select>
+      </div>
+      <div class="btn-group">
+        <button class="btn" id="connectBtn">Connect</button>
+        <button class="btn" id="disconnectBtn" disabled>Disconnect</button>
+      </div>
+      <div class="menu-row" style="margin-top: 10px;">
+        <label style="display: flex; align-items: center; gap: 8px;">
+          <input type="checkbox" id="beepToggle" checked />
+          <span>Beep on measurement</span>
+        </label>
+      </div>
+      <button class="btn btn-full" id="testBtn">Test: 8' 6"</button>
+      <div class="hint">Requires HTTPS. Measurements auto-apply to selected lines.</div>
+    </div>
+
+    <!-- Export -->
+    <div class="menu-section">
+      <h3>Export</h3>
+      <div class="btn-group">
+        <button class="btn" id="exportJpgBtn">JPG</button>
+        <button class="btn" id="exportPdfBtn">PDF</button>
+      </div>
+      <button class="btn btn-full" id="exportProBtn" style="margin-top: 10px;">PDF Report</button>
+    </div>
+
+    <!-- Settings -->
+    <div class="menu-section">
+      <h3>Settings</h3>
+      <button class="btn btn-full" id="settingsBtn">Company Info</button>
+    </div>
+  </div>
+
+  <!-- Bottom toolbar -->
+  <div class="toolbar">
+    <div class="toolbar-grid">
+      <button class="btn active" id="drawToolBtn">Draw</button>
+      <button class="btn" id="selectToolBtn">Select</button>
+      <button class="btn danger" id="deleteToolBtn">Delete</button>
+      <button class="btn" id="undoToolBtn">Undo</button>
+    </div>
+  </div>
+
+  <!-- Zoom controls -->
+  <div class="zoom-controls">
+    <button class="zoom-btn" id="zoomInBtn">+</button>
+    <button class="zoom-btn" id="fitBtn">⌂</button>
+    <button class="zoom-btn" id="zoomOutBtn">−</button>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="modal hidden">
+    <div class="modal-content">
+      <h3>Company Settings</h3>
+      
+      <label>Company Name</label>
+      <input class="input" id="companyNameInput" type="text" placeholder="Your Company" />
+      
+      <label>Email</label>
+      <input class="input" id="companyEmailInput" type="text" placeholder="contact@company.com" />
+      
+      <label>Address</label>
+      <input class="input" id="companyAddressInput" type="text" placeholder="Company Address" />
+      
+      <label>Logo</label>
+      <input class="input" id="logoInput" type="file" accept="image/*" />
+      
+      <div class="btn-group" style="margin-top: 20px;">
+        <button class="btn ok" id="saveSettingsBtn">Save</button>
+        <button class="btn" id="cancelSettingsBtn">Cancel</button>
+      </div>
+      
+      <div class="hint">Settings saved locally on your device</div>
+    </div>
+  </div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+(() => {
+  // State
+  const state = {
+    tool: 'draw',
+    colors: ['#ff4d4f','#ffa502','#ffd166','#2ed573','#1e90ff','#a29bfe','#f368e0','#f1f2f6','#57606a'],
+    activeColor: '#1e90ff',
+    lineWidth: 3,
+    endCap: 'arrow',
+    units: 'imperial',
+    tagPrefix: 'A',
+    tagCounter: 1,
+    shapes: [],
+    selectedShape: null,
+    dragging: null,
+    image: null,
+    imageNaturalSize: {w: 0, h: 0},
+    canvasScale: 1,
+    zoom: 1,
+    history: [],
+    bluetooth: {device: null, connected: false},
+    settings: {company: '', email: '', address: '', logo: null},
+    menuOpen: false
+  };
+
+  // Elements
+  const imageCanvas = document.getElementById('imageCanvas');
+  const drawCanvas = document.getElementById('drawCanvas');
+  const container = document.getElementById('canvasContainer');
+  const imgCtx = imageCanvas.getContext('2d');
+  const drawCtx = drawCanvas.getContext('2d');
+  
+  const menuBtn = document.getElementById('menuBtn');
+  const slideMenu = document.getElementById('slideMenu');
+  const menuOverlay = document.getElementById('menuOverlay');
+
+  // Initialize
+  loadSettings();
+  setupColorPalette();
+  setupEventListeners();
+  drawPlaceholder();
+
+  function setupColorPalette() {
+    const grid = document.getElementById('colorGrid');
+    grid.innerHTML = '';
+    
+    state.colors.forEach(color => {
+      const swatch = document.createElement('div');
+      swatch.className = 'color-swatch';
+      swatch.style.backgroundColor = color;
+      if (color === state.activeColor) {
+        swatch.classList.add('selected');
+      }
+      
+      swatch.addEventListener('click', () => {
+        document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+        swatch.classList.add('selected');
+        state.activeColor = color;
+        
+        // Apply to selected shape
+        const selected = getSelectedShape();
+        if (selected) {
+          saveToHistory();
+          selected.color = color;
+          redraw();
+        }
+      });
+      
+      grid.appendChild(swatch);
+    });
+  }
+
+  function setupEventListeners() {
+    // Menu toggle
+    menuBtn.addEventListener('click', toggleMenu);
+    menuOverlay.addEventListener('click', () => toggleMenu(false));
+
+    // File operations
+    document.getElementById('chooseBtn').addEventListener('click', () => {
+      document.getElementById('fileInput').click();
+    });
+    
+    document.getElementById('fileInput').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) loadImageFile(file);
+    });
+
+    // Enhanced camera button
+    document.getElementById('cameraBtn').addEventListener('click', openCamera);
+
+    // Tools
+    document.getElementById('toolDraw').addEventListener('click', () => setTool('draw'));
+    document.getElementById('toolSelect').addEventListener('click', () => setTool('select'));
+    document.getElementById('toolRecolor').addEventListener('click', () => setTool('recolor'));
+    
+    // Toolbar tools
+    document.getElementById('drawToolBtn').addEventListener('click', () => setTool('draw'));
+    document.getElementById('selectToolBtn').addEventListener('click', () => setTool('select'));
+    document.getElementById('deleteToolBtn').addEventListener('click', deleteSelected);
+    document.getElementById('undoToolBtn').addEventListener('click', undo);
+
+    // Actions
+    document.getElementById('deleteBtn').addEventListener('click', deleteSelected);
+    document.getElementById('undoBtn').addEventListener('click', undo);
+
+    // Style controls
+    document.getElementById('widthSlider').addEventListener('input', (e) => {
+      const width = parseInt(e.target.value);
+      state.lineWidth = width;
+      document.getElementById('widthDisplay').textContent = width;
+      
+      const selected = getSelectedShape();
+      if (selected) {
+        selected.width = width;
+        redraw();
+      }
+    });
+
+    // End caps
+    document.querySelectorAll('input[name="endcap"]').forEach(radio => {
+      radio.addEventListener('change', () => {
+        state.endCap = document.querySelector('input[name="endcap"]:checked').value;
+        const selected = getSelectedShape();
+        if (selected) {
+          selected.cap = state.endCap;
+          redraw();
+        }
+      });
+    });
+
+    // Units
+    document.querySelectorAll('input[name="units"]').forEach(radio => {
+      radio.addEventListener('change', () => {
+        state.units = document.querySelector('input[name="units"]:checked').value;
+        document.getElementById('imperialInputs').classList.toggle('hidden', state.units !== 'imperial');
+        document.getElementById('metricInputs').classList.toggle('hidden', state.units !== 'metric');
+      });
+    });
+
+    // Measurement inputs
+    document.getElementById('applyImperialBtn').addEventListener('click', applyImperialMeasurement);
+    document.getElementById('applyMetricBtn').addEventListener('click', applyMetricMeasurement);
+    document.getElementById('clearInboxBtn').addEventListener('click', () => {
+      document.getElementById('inbox').innerHTML = '';
+    });
+
+    // Bluetooth
+    document.getElementById('connectBtn').addEventListener('click', connectBluetooth);
+    document.getElementById('disconnectBtn').addEventListener('click', disconnectBluetooth);
+    document.getElementById('testBtn').addEventListener('click', () => {
+      simulateBluetoothReading("8' 6\"");
+    });
+
+    // Export
+    document.getElementById('exportJpgBtn').addEventListener('click', exportJPG);
+    document.getElementById('exportPdfBtn').addEventListener('click', () => exportPDF(false));
+    document.getElementById('exportProBtn').addEventListener('click', () => exportPDF(true));
+
+    // Settings
+    document.getElementById('settingsBtn').addEventListener('click', openSettings);
+    document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
+    document.getElementById('cancelSettingsBtn').addEventListener('click', closeSettings);
+
+    // Zoom
+    document.getElementById('zoomInBtn').addEventListener('click', () => adjustZoom(1.25));
+    document.getElementById('zoomOutBtn').addEventListener('click', () => adjustZoom(0.8));
+    document.getElementById('fitBtn').addEventListener('click', fitToScreen);
+
+    // Canvas interactions
+    setupCanvasEvents();
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        undo();
+      }
+      if (e.key === 'Delete') {
+        deleteSelected();
+      }
+    });
+
+    // Drag and drop
+    document.addEventListener('dragover', (e) => e.preventDefault());
+    document.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) {
+        loadImageFile(file);
+      }
+    });
+  }
+
+  function toggleMenu(force = null) {
+    state.menuOpen = force !== null ? force : !state.menuOpen;
+    slideMenu.classList.toggle('open', state.menuOpen);
+    menuOverlay.classList.toggle('visible', state.menuOpen);
+    menuBtn.textContent = state.menuOpen ? '✕' : '☰';
+  }
+
+  function setTool(tool) {
+    state.tool = tool;
+    
+    // Update menu tools
+    document.querySelectorAll('#slideMenu .btn').forEach(btn => btn.classList.remove('active'));
+    
+    if (tool === 'draw') {
+      document.getElementById('toolDraw').classList.add('active');
+      document.getElementById('drawToolBtn').classList.add('active');
+    } else if (tool === 'select') {
+      document.getElementById('toolSelect').classList.add('active');
+      document.getElementById('selectToolBtn').classList.add('active');
+    } else if (tool === 'recolor') {
+      document.getElementById('toolRecolor').classList.add('active');
+    }
+    
+    // Update toolbar
+    document.getElementById('drawToolBtn').classList.toggle('active', tool === 'draw');
+    document.getElementById('selectToolBtn').classList.toggle('active', tool === 'select');
+  }
+
+  async function openCamera() {
+    toggleMenu(false);
+    
+    try {
+      // Request camera with back-facing preference
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        }
+      });
+
+      // Create full-screen camera interface
+      const cameraContainer = document.createElement('div');
+      Object.assign(cameraContainer.style, {
+        position: 'fixed',
+        top: '0',
+        left: '0',
+        width: '100vw',
+        height: '100vh',
+        background: '#000',
+        zIndex: '1000',
+        display: 'flex',
+        flexDirection: 'column'
+      });
+
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      video.autoplay = true;
+      video.playsInline = true;
+      Object.assign(video.style, {
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover'
+      });
+
+      const controls = document.createElement('div');
+      Object.assign(controls.style, {
+        position: 'absolute',
+        bottom: '0',
+        left: '0',
+        right: '0',
+        padding: '20px',
+        background: 'linear-gradient(transparent, rgba(0,0,0,0.8))',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: '20px'
+      });
+
+      const captureBtn = document.createElement('button');
+      captureBtn.textContent = 'Capture';
+      Object.assign(captureBtn.style, {
+        width: '80px',
+        height: '80px',
+        borderRadius: '50%',
+        background: 'var(--accent)',
+        color: '#000',
+        border: '4px solid #fff',
+        fontSize: '14px',
+        fontWeight: 'bold',
+        cursor: 'pointer',
+        boxShadow: '0 4px 20px rgba(0,0,0,0.5)'
+      });
+
+      const closeBtn = document.createElement('button');
+      closeBtn.textContent = '✕';
+      Object.assign(closeBtn.style, {
+        position: 'absolute',
+        top: '20px',
+        right: '20px',
+        width: '40px',
+        height: '40px',
+        borderRadius: '50%',
+        background: 'rgba(0,0,0,0.6)',
+        color: '#fff',
+        border: 'none',
+        fontSize: '20px',
+        cursor: 'pointer'
+      });
+
+      const switchBtn = document.createElement('button');
+      switchBtn.textContent = '🔄';
+      Object.assign(switchBtn.style, {
+        width: '50px',
+        height: '50px',
+        borderRadius: '50%',
+        background: 'rgba(255,255,255,0.2)',
+        color: '#fff',
+        border: '1px solid rgba(255,255,255,0.3)',
+        fontSize: '20px',
+        cursor: 'pointer'
+      });
+
+      controls.appendChild(switchBtn);
+      controls.appendChild(captureBtn);
+      cameraContainer.appendChild(video);
+      cameraContainer.appendChild(controls);
+      cameraContainer.appendChild(closeBtn);
+      document.body.appendChild(cameraContainer);
+
+      let currentFacingMode = 'environment';
+
+      // Switch camera
+      switchBtn.addEventListener('click', async () => {
+        try {
+          stream.getTracks().forEach(track => track.stop());
+          currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+          
+          const newStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: { ideal: currentFacingMode },
+              width: { ideal: 1920 },
+              height: { ideal: 1080 }
+            }
+          });
+          
+          video.srcObject = newStream;
+        } catch (err) {
+          console.warn('Camera switch failed:', err);
+        }
+      });
+
+      // Capture
+      captureBtn.addEventListener('click', () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 1920;
+        canvas.height = video.videoHeight || 1080;
+        
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0);
+        
+        canvas.toBlob((blob) => {
+          const file = new File([blob], 'camera-capture.jpg', { type: 'image/jpeg' });
+          loadImageFile(file);
+          cleanup();
+        }, 'image/jpeg', 0.9);
+      });
+
+      // Close
+      const cleanup = () => {
+        stream.getTracks().forEach(track => track.stop());
+        cameraContainer.remove();
+      };
+      
+      closeBtn.addEventListener('click', cleanup);
+
+    } catch (err) {
+      console.error('Camera access failed:', err);
+      // Fallback to file input
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.capture = 'environment';
+      input.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) loadImageFile(file);
+      });
+      input.click();
+    }
+  }
+
+  function loadImageFile(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        state.image = img;
+        state.imageNaturalSize = { w: img.naturalWidth, h: img.naturalHeight };
+        fitToScreen();
+      };
+      img.onerror = () => {
+        alert('Failed to load image. Please try a different format.');
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function fitToScreen() {
+    if (!state.image) {
+      drawPlaceholder();
+      return;
+    }
+
+    const containerRect = container.getBoundingClientRect();
+    const containerW = containerRect.width;
+    const containerH = containerRect.height;
+    const imgW = state.imageNaturalSize.w;
+    const imgH = state.imageNaturalSize.h;
+
+    // Calculate scale to fit image in container
+    const scale = Math.min(containerW / imgW, containerH / imgH, 1);
+    
+    const canvasW = Math.floor(imgW * scale);
+    const canvasH = Math.floor(imgH * scale);
+
+    imageCanvas.width = drawCanvas.width = canvasW;
+    imageCanvas.height = drawCanvas.height = canvasH;
+    
+    state.canvasScale = scale;
+    state.zoom = 1;
+    container.style.transform = 'scale(1)';
+    container.style.transformOrigin = '50% 50%';
+
+    drawImage();
+    redraw();
+  }
+
+  function drawImage() {
+    imgCtx.clearRect(0, 0, imageCanvas.width, imageCanvas.height);
+    if (state.image) {
+      imgCtx.drawImage(state.image, 0, 0, imageCanvas.width, imageCanvas.height);
+    } else {
+      drawPlaceholder();
+    }
+  }
+
+  function drawPlaceholder() {
+    const w = imageCanvas.width || 400;
+    const h = imageCanvas.height || 300;
+    
+    imgCtx.fillStyle = '#0b0e13';
+    imgCtx.fillRect(0, 0, w, h);
+    
+    imgCtx.strokeStyle = '#161a22';
+    imgCtx.lineWidth = 1;
+    
+    // Grid
+    for (let x = 0; x < w; x += 40) {
+      imgCtx.beginPath();
+      imgCtx.moveTo(x, 0);
+      imgCtx.lineTo(x, h);
+      imgCtx.stroke();
+    }
+    
+    for (let y = 0; y < h; y += 40) {
+      imgCtx.beginPath();
+      imgCtx.moveTo(0, y);
+      imgCtx.lineTo(w, y);
+      imgCtx.stroke();
+    }
+
+    // Center text
+    imgCtx.fillStyle = '#666';
+    imgCtx.font = '16px system-ui';
+    imgCtx.textAlign = 'center';
+    imgCtx.textBaseline = 'middle';
+    imgCtx.fillText('Tap Camera or Gallery to load image', w/2, h/2);
+  }
+
+  function setupCanvasEvents() {
+    let isDrawing = false;
+    let startPoint = null;
+    let lastTouch = 0;
+
+    // Unified pointer events for mouse and touch
+    drawCanvas.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      const point = getCanvasPoint(e);
+      const now = Date.now();
+
+      // Double-tap to fit
+      if (now - lastTouch < 300) {
+        fitToScreen();
+        return;
+      }
+      lastTouch = now;
+
+      if (state.tool === 'draw') {
+        isDrawing = true;
+        startPoint = point;
+      } else if (state.tool === 'select') {
+        handleSelection(point);
+      }
+    });
+
+    drawCanvas.addEventListener('pointermove', (e) => {
+      if (!isDrawing && !state.dragging) return;
+      
+      e.preventDefault();
+      const point = getCanvasPoint(e);
+
+      if (isDrawing && startPoint) {
+        drawPreview(startPoint, point);
+      } else if (state.dragging) {
+        handleDrag(point);
+      }
+    });
+
+    drawCanvas.addEventListener('pointerup', (e) => {
+      if (isDrawing && startPoint) {
+        const point = getCanvasPoint(e);
+        addMeasurementLine(startPoint, point);
+        isDrawing = false;
+        startPoint = null;
+      }
+      state.dragging = null;
+    });
+
+    // Pinch zoom
+    let initialDistance = 0;
+    let initialZoom = 1;
+    
+    drawCanvas.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2) {
+        const touch1 = e.touches[0];
+        const touch2 = e.touches[1];
+        initialDistance = Math.hypot(
+          touch1.clientX - touch2.clientX,
+          touch1.clientY - touch2.clientY
+        );
+        initialZoom = state.zoom;
+      }
+    });
+
+    drawCanvas.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const touch1 = e.touches[0];
+        const touch2 = e.touches[1];
+        const currentDistance = Math.hypot(
+          touch1.clientX - touch2.clientX,
+          touch1.clientY - touch2.clientY
+        );
+
+        if (initialDistance > 0) {
+          const scale = currentDistance / initialDistance;
+          const newZoom = Math.max(0.5, Math.min(3, initialZoom * scale));
+          adjustZoom(newZoom / state.zoom);
+        }
+      }
+    });
+  }
+
+  function getCanvasPoint(e) {
+    const rect = drawCanvas.getBoundingClientRect();
+    const scaleX = drawCanvas.width / rect.width;
+    const scaleY = drawCanvas.height / rect.height;
+    
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY
+    };
+  }
+
+  function drawPreview(start, end) {
+    redraw();
+    drawCtx.save();
+    drawCtx.strokeStyle = state.activeColor;
+    drawCtx.lineWidth = state.lineWidth;
+    drawCtx.setLineDash([8, 4]);
+    drawCtx.beginPath();
+    drawCtx.moveTo(start.x, start.y);
+    drawCtx.lineTo(end.x, end.y);
+    drawCtx.stroke();
+    drawCtx.restore();
+  }
+
+  function addMeasurementLine(p1, p2) {
+    // Don't create tiny lines
+    const distance = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+    if (distance < 10) return;
+
+    saveToHistory();
+    
+    const shape = {
+      id: generateId(),
+      p1: { ...p1 },
+      p2: { ...p2 },
+      color: state.activeColor,
+      width: state.lineWidth,
+      cap: state.endCap,
+      tag: generateTag(),
+      measurement: null,
+      units: state.units,
+      description: ''
+    };
+
+    state.shapes.push(shape);
+    state.selectedShape = shape.id;
+    redraw();
+  }
+
+  function handleSelection(point) {
+    let hitShape = null;
+    let hitType = null;
+    
+    // Check for hits on shapes (larger hit areas for mobile)
+    for (const shape of [...state.shapes].reverse()) {
+      // Check endpoints
+      if (distance(point, shape.p1) < 20) {
+        hitShape = shape;
+        hitType = 'p1';
+        break;
+      }
+      if (distance(point, shape.p2) < 20) {
+        hitShape = shape;
+        hitType = 'p2';
+        break;
+      }
+      
+      // Check line
+      const lineDistance = distanceToLine(point, shape.p1, shape.p2);
+      if (lineDistance < Math.max(15, shape.width + 5)) {
+        hitShape = shape;
+        hitType = 'line';
+        break;
+      }
+    }
+
+    if (hitShape) {
+      state.selectedShape = hitShape.id;
+      if (hitType === 'p1' || hitType === 'p2' || hitType === 'line') {
+        saveToHistory();
+        state.dragging = hitType;
+      }
+    } else {
+      state.selectedShape = null;
+    }
+    
+    redraw();
+  }
+
+  function handleDrag(point) {
+    const shape = getSelectedShape();
+    if (!shape) return;
+
+    if (state.dragging === 'p1') {
+      shape.p1 = { ...point };
+    } else if (state.dragging === 'p2') {
+      shape.p2 = { ...point };
+    } else if (state.dragging === 'line') {
+      const center = {
+        x: (shape.p1.x + shape.p2.x) / 2,
+        y: (shape.p1.y + shape.p2.y) / 2
+      };
+      const dx = point.x - center.x;
+      const dy = point.y - center.y;
+      
+      shape.p1.x += dx;
+      shape.p1.y += dy;
+      shape.p2.x += dx;
+      shape.p2.y += dy;
+    }
+    
+    redraw();
+  }
+
+  function redraw() {
+    drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+    
+    for (const shape of state.shapes) {
+      drawMeasurementLine(shape);
+    }
+  }
+
+  function drawMeasurementLine(shape) {
+    const isSelected = shape.id === state.selectedShape;
+    
+    // Draw line
+    drawCtx.save();
+    drawCtx.strokeStyle = shape.color;
+    drawCtx.lineWidth = shape.width;
+    drawCtx.lineCap = 'round';
+    drawCtx.beginPath();
+    drawCtx.moveTo(shape.p1.x, shape.p1.y);
+    drawCtx.lineTo(shape.p2.x, shape.p2.y);
+    drawCtx.stroke();
+    
+    // Draw end caps
+    drawEndCap(shape.p1, shape.p2, shape.color, shape.width, shape.cap);
+    drawEndCap(shape.p2, shape.p1, shape.color, shape.width, shape.cap);
+    
+    // Draw tag
+    drawTag(shape);
+    
+    // Draw measurement label if available
+    if (shape.measurement) {
+      drawMeasurementLabel(shape);
+    }
+    
+    // Selection indicators
+    if (isSelected) {
+      drawSelectionHandles(shape);
+    }
+    
+    drawCtx.restore();
+  }
+
+  function drawEndCap(point, otherPoint, color, width, capType) {
+    const angle = Math.atan2(point.y - otherPoint.y, point.x - otherPoint.x);
+    
+    drawCtx.save();
+    drawCtx.translate(point.x, point.y);
+    drawCtx.rotate(angle);
+    drawCtx.fillStyle = color;
+    
+    if (capType === 'arrow') {
+      drawCtx.beginPath();
+      drawCtx.moveTo(0, 0);
+      drawCtx.lineTo(-12, -6);
+      drawCtx.lineTo(-12, 6);
+      drawCtx.closePath();
+      drawCtx.fill();
+    } else if (capType === 'circle') {
+      drawCtx.beginPath();
+      drawCtx.arc(0, 0, width * 1.5 + 3, 0, Math.PI * 2);
+      drawCtx.fill();
+    }
+    
+    drawCtx.restore();
+  }
+
+  function drawTag(shape) {
+    const center = {
+      x: (shape.p1.x + shape.p2.x) / 2,
+      y: (shape.p1.y + shape.p2.y) / 2
+    };
+    
+    // Offset tag perpendicular to line
+    const dx = shape.p2.x - shape.p1.x;
+    const dy = shape.p2.y - shape.p1.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len;
+    const ny = dx / len;
+    
+    const tagPos = {
+      x: center.x + nx * 20,
+      y: center.y + ny * 20
+    };
+    
+    drawBadge(shape.tag, tagPos, shape.color);
+  }
+
+  function drawMeasurementLabel(shape) {
+    const center = {
+      x: (shape.p1.x + shape.p2.x) / 2,
+      y: (shape.p1.y + shape.p2.y) / 2
+    };
+    
+    const labelPos = {
+      x: center.x + 50,
+      y: center.y - 20
+    };
+    
+    // Leader line
+    drawCtx.save();
+    drawCtx.strokeStyle = shape.color;
+    drawCtx.lineWidth = 1;
+    drawCtx.setLineDash([4, 4]);
+    drawCtx.beginPath();
+    drawCtx.moveTo(center.x, center.y);
+    drawCtx.lineTo(labelPos.x, labelPos.y);
+    drawCtx.stroke();
+    drawCtx.restore();
+    
+    // Measurement bubble
+    drawBubble(formatMeasurement(shape.measurement, shape.units), labelPos);
+  }
+
+  function drawBadge(text, pos, color) {
+    drawCtx.save();
+    drawCtx.font = '12px system-ui';
+    drawCtx.textAlign = 'center';
+    drawCtx.textBaseline = 'middle';
+    
+    const metrics = drawCtx.measureText(text);
+    const w = metrics.width + 16;
+    const h = 24;
+    
+    // Badge background
+    drawCtx.fillStyle = color;
+    drawCtx.beginPath();
+    drawCtx.roundRect(pos.x - w/2, pos.y - h/2, w, h, 12);
+    drawCtx.fill();
+    
+    // Badge text
+    const luminance = getLuminance(color);
+    drawCtx.fillStyle = luminance > 0.5 ? '#000' : '#fff';
+    drawCtx.fillText(text, pos.x, pos.y);
+    
+    drawCtx.restore();
+  }
+
+  function drawBubble(text, pos) {
+    if (!text) return;
+    
+    drawCtx.save();
+    drawCtx.font = '13px system-ui';
+    drawCtx.textAlign = 'center';
+    drawCtx.textBaseline = 'middle';
+    
+    const metrics = drawCtx.measureText(text);
+    const w = metrics.width + 20;
+    const h = 28;
+    
+    // Bubble background
+    drawCtx.fillStyle = 'rgba(18, 20, 27, 0.9)';
+    drawCtx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    drawCtx.lineWidth = 1;
+    drawCtx.beginPath();
+    drawCtx.roundRect(pos.x - w/2, pos.y - h/2, w, h, 14);
+    drawCtx.fill();
+    drawCtx.stroke();
+    
+    // Text
+    drawCtx.fillStyle = '#fff';
+    drawCtx.fillText(text, pos.x, pos.y);
+    
+    drawCtx.restore();
+  }
+
+  function drawSelectionHandles(shape) {
+    const points = [shape.p1, shape.p2];
+    
+    drawCtx.save();
+    drawCtx.fillStyle = '#fff';
+    drawCtx.strokeStyle = '#000';
+    drawCtx.lineWidth = 2;
+    
+    for (const point of points) {
+      drawCtx.beginPath();
+      drawCtx.arc(point.x, point.y, 8, 0, Math.PI * 2);
+      drawCtx.fill();
+      drawCtx.stroke();
+    }
+    
+    drawCtx.restore();
+  }
+
+  // Bluetooth functionality
+  async function connectBluetooth() {
+    if (!navigator.bluetooth) {
+      alert('Bluetooth not supported. Requires HTTPS.');
+      return;
+    }
+
+    try {
+      const device = await navigator.bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: ['generic_access']
+      });
+
+      const server = await device.gatt.connect();
+      state.bluetooth.device = device;
+      state.bluetooth.connected = true;
+      
+      document.getElementById('connectBtn').disabled = true;
+      document.getElementById('disconnectBtn').disabled = false;
+      
+      // Listen for disconnection
+      device.addEventListener('gattserverdisconnected', () => {
+        state.bluetooth.connected = false;
+        document.getElementById('connectBtn').disabled = false;
+        document.getElementById('disconnectBtn').disabled = true;
+      });
+
+      // Try to find measurement services
+      const services = await server.getPrimaryServices();
+      for (const service of services) {
+        try {
+          const characteristics = await service.getCharacteristics();
+          for (const char of characteristics) {
+            if (char.properties.notify) {
+              await char.startNotifications();
+              char.addEventListener('characteristicvaluechanged', handleBluetoothData);
+            }
+          }
+        } catch (err) {
+          console.warn('Service access failed:', err);
+        }
+      }
+      
+      alert('Bluetooth connected!');
+      
+    } catch (err) {
+      console.error('Bluetooth failed:', err);
+      alert('Bluetooth connection failed: ' + err.message);
+    }
+  }
+
+  function disconnectBluetooth() {
+    if (state.bluetooth.device) {
+      state.bluetooth.device.gatt.disconnect();
+    }
+  }
+
+  function handleBluetoothData(event) {
+    const value = event.target.value;
+    let measurement = null;
+    
+    try {
+      // Try to parse as text
+      const text = new TextDecoder().decode(value);
+      measurement = parseMeasurementText(text);
+    } catch (err) {
+      // Try to parse as binary data
+      if (value.byteLength >= 2) {
+        const mm = value.getUint16(0, true);
+        measurement = { value: mm, units: 'metric' };
+      }
+    }
+    
+    if (measurement) {
+      if (document.getElementById('beepToggle').checked) {
+        playBeep();
+      }
+      applyMeasurement(measurement);
+    }
+  }
+
+  function simulateBluetoothReading(text) {
+    const measurement = parseMeasurementText(text);
+    if (measurement) {
+      if (document.getElementById('beepToggle').checked) {
+        playBeep();
+      }
+      applyMeasurement(measurement);
+    }
+  }
+
+  function parseMeasurementText(text) {
+    text = text.trim().toLowerCase();
+    
+    // Imperial patterns
+    const imperial = text.match(/(\d+)[\'\s]*(\d+(?:\.\d+)?)\s*(?:-\s*(\d+)\/(\d+))?/);
+    if (imperial) {
+      const ft = parseInt(imperial[1]) || 0;
+      const inches = parseFloat(imperial[2]) || 0;
+      const num = parseInt(imperial[3]) || 0;
+      const den = parseInt(imperial[4]) || 1;
+      const totalInches = ft * 12 + inches + num / den;
+      return { value: totalInches, units: 'imperial' };
+    }
+    
+    // Metric patterns
+    const mm = text.match(/([\d.]+)\s*mm/);
+    if (mm) {
+      return { value: parseFloat(mm[1]), units: 'metric' };
+    }
+    
+    const cm = text.match(/([\d.]+)\s*cm/);
+    if (cm) {
+      return { value: parseFloat(cm[1]) * 10, units: 'metric' };
+    }
+    
+    const m = text.match(/([\d.]+)\s*m(?!m)/);
+    if (m) {
+      return { value: parseFloat(m[1]) * 1000, units: 'metric' };
+    }
+    
+    return null;
+  }
+
+  function applyMeasurement(measurement) {
+    const selected = getSelectedShape();
+    
+    if (selected) {
+      selected.measurement = measurement.value;
+      selected.units = measurement.units;
+      redraw();
+    } else {
+      addToInbox(measurement);
+    }
+  }
+
+  function addToInbox(measurement) {
+    const inbox = document.getElementById('inbox');
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    chip.textContent = formatMeasurement(measurement.value, measurement.units);
+    chip.dataset.value = measurement.value;
+    chip.dataset.units = measurement.units;
+    
+    chip.addEventListener('click', () => {
+      const selected = getSelectedShape();
+      if (selected) {
+        selected.measurement = parseFloat(chip.dataset.value);
+        selected.units = chip.dataset.units;
+        chip.remove();
+        redraw();
+      }
+    });
+    
+    inbox.appendChild(chip);
+  }
+
+  function applyImperialMeasurement() {
+    const ft = parseFloat(document.getElementById('ftInput').value || '0');
+    const inches = parseFloat(document.getElementById('inInput').value || '0');
+    const num = parseFloat(document.getElementById('numInput').value || '0');
+    const den = parseFloat(document.getElementById('fracSelect').value || '1');
+    
+    const totalInches = ft * 12 + inches + num / den;
+    
+    const selected = getSelectedShape();
+    if (selected) {
+      selected.measurement = totalInches;
+      selected.units = 'imperial';
+      redraw();
+    } else {
+      addToInbox({ value: totalInches, units: 'imperial' });
+    }
+    
+    // Clear inputs
+    document.getElementById('ftInput').value = '';
+    document.getElementById('inInput').value = '';
+    document.getElementById('numInput').value = '';
+  }
+
+  function applyMetricMeasurement() {
+    const mm = parseFloat(document.getElementById('mmInput').value || '0');
+    
+    const selected = getSelectedShape();
+    if (selected) {
+      selected.measurement = mm;
+      selected.units = 'metric';
+      redraw();
+    } else {
+      addToInbox({ value: mm, units: 'metric' });
+    }
+    
+    document.getElementById('mmInput').value = '';
+  }
+
+  function formatMeasurement(value, units) {
+    if (units === 'imperial') {
+      const sign = value < 0 ? '-' : '';
+      value = Math.abs(value);
+      const feet = Math.floor(value / 12);
+      const remainingInches = value - feet * 12;
+      const wholeInches = Math.floor(remainingInches);
+      const fraction = remainingInches - wholeInches;
+      
+      const denom = 16;
+      let num = Math.round(fraction * denom);
+      
+      if (num === denom) {
+        return `${sign}${feet}' ${wholeInches + 1}"`;
+      } else if (num === 0) {
+        return `${sign}${feet}' ${wholeInches}"`;
+      } else {
+        return `${sign}${feet}' ${wholeInches}-${num}/${denom}"`;
+      }
+    } else {
+      return `${Math.round(value)} mm`;
+    }
+  }
+
+  function adjustZoom(factor) {
+    state.zoom = Math.max(0.5, Math.min(3, state.zoom * factor));
+    container.style.transform = `scale(${state.zoom})`;
+  }
+
+  function deleteSelected() {
+    if (!state.selectedShape) return;
+    
+    saveToHistory();
+    state.shapes = state.shapes.filter(s => s.id !== state.selectedShape);
+    state.selectedShape = null;
+    redraw();
+  }
+
+  function undo() {
+    if (state.history.length === 0) return;
+    
+    const previousState = state.history.pop();
+    state.shapes = JSON.parse(JSON.stringify(previousState));
+    state.selectedShape = null;
+    redraw();
+  }
+
+  function saveToHistory() {
+    // Keep last 20 states
+    if (state.history.length >= 20) {
+      state.history.shift();
+    }
+    state.history.push(JSON.parse(JSON.stringify(state.shapes)));
+  }
+
+  // Utility functions
+  function distance(p1, p2) {
+    return Math.hypot(p2.x - p1.x, p2.y - p1.y);
+  }
+
+  function distanceToLine(point, lineStart, lineEnd) {
+    const A = point.x - lineStart.x;
+    const B = point.y - lineStart.y;
+    const C = lineEnd.x - lineStart.x;
+    const D = lineEnd.y - lineStart.y;
+
+    const dot = A * C + B * D;
+    const lenSq = C * C + D * D;
+    
+    if (lenSq === 0) return distance(point, lineStart);
+    
+    let param = dot / lenSq;
+    
+    let xx, yy;
+    if (param < 0) {
+      xx = lineStart.x;
+      yy = lineStart.y;
+    } else if (param > 1) {
+      xx = lineEnd.x;
+      yy = lineEnd.y;
+    } else {
+      xx = lineStart.x + param * C;
+      yy = lineStart.y + param * D;
+    }
+
+    return distance(point, {x: xx, y: yy});
+  }
+
+  function getSelectedShape() {
+    return state.shapes.find(s => s.id === state.selectedShape);
+  }
+
+  function generateId() {
+    return Date.now().toString(36) + Math.random().toString(36);
+  }
+
+  function generateTag() {
+    return state.tagPrefix + state.tagCounter++;
+  }
+
+  function getLuminance(hex) {
+    const rgb = parseInt(hex.slice(1), 16);
+    const r = (rgb >> 16) & 255;
+    const g = (rgb >> 8) & 255;
+    const b = rgb & 255;
+    return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  }
+
+  function playBeep() {
+    try {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.value = 800;
+      gainNode.gain.value = 0.1;
+      
+      oscillator.start();
+      setTimeout(() => {
+        oscillator.stop();
+        audioContext.close();
+      }, 150);
+    } catch (err) {
+      console.warn('Audio not supported');
+    }
+  }
+
+  // Export functions
+  function exportJPG() {
+    if (!state.image) {
+      alert('Please load an image first');
+      return;
+    }
+
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = imageCanvas.width;
+    exportCanvas.height = imageCanvas.height;
+    
+    const ctx = exportCanvas.getContext('2d');
+    
+    // Draw image
+    ctx.drawImage(state.image, 0, 0, exportCanvas.width, exportCanvas.height);
+    
+    // Draw all shapes
+    for (const shape of state.shapes) {
+      drawShapeToCanvas(ctx, shape, exportCanvas.width / drawCanvas.width);
+    }
+    
+    exportCanvas.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = getFileName('jpg');
+      a.click();
+      URL.revokeObjectURL(url);
+    }, 'image/jpeg', 0.9);
+  }
+
+  function exportPDF(detailed = false) {
+    if (!state.image) {
+      alert('Please load an image first');
+      return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    // Add header
+    doc.setFontSize(16);
+    doc.text('Measurement Report', 20, 30);
+    
+    const project = document.getElementById('projectInput').value || 'Project';
+    const area = document.getElementById('areaInput').value || 'Area';
+    
+    doc.setFontSize(12);
+    doc.text(`${project} - ${area}`, 20, 50);
+    doc.text(`Created: ${new Date().toLocaleDateString()}`, 20, 65);
+    
+    // Add image
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = imageCanvas.width;
+    exportCanvas.height = imageCanvas.height;
+    
+    const ctx = exportCanvas.getContext('2d');
+    ctx.drawImage(state.image, 0, 0, exportCanvas.width, exportCanvas.height);
+    
+    for (const shape of state.shapes) {
+      drawShapeToCanvas(ctx, shape, 1);
+    }
+    
+    const imgData = exportCanvas.toDataURL('image/jpeg', 0.8);
+    doc.addImage(imgData, 'JPEG', 20, 80, 170, 170 * (exportCanvas.height / exportCanvas.width));
+    
+    if (detailed && state.shapes.length > 0) {
+      // Add measurement table
+      doc.addPage();
+      doc.setFontSize(14);
+      doc.text('Measurements', 20, 30);
+      
+      let y = 50;
+      doc.setFontSize(10);
+      
+      state.shapes.forEach((shape, i) => {
+        const measurement = shape.measurement ? 
+          formatMeasurement(shape.measurement, shape.units) : 'No measurement';
+        
+        doc.text(`${shape.tag}: ${measurement}`, 20, y);
+        if (shape.description) {
+          doc.text(shape.description, 60, y);
+        }
+        y += 15;
+        
+        if (y > 270) {
+          doc.addPage();
+          y = 30;
+        }
+      });
+    }
+    
+    doc.save(getFileName('pdf'));
+  }
+
+  function drawShapeToCanvas(ctx, shape, scale = 1) {
+    ctx.save();
+    
+    // Scale positions
+    const p1 = { x: shape.p1.x * scale, y: shape.p1.y * scale };
+    const p2 = { x: shape.p2.x * scale, y: shape.p2.y * scale };
+    
+    // Draw line
+    ctx.strokeStyle = shape.color;
+    ctx.lineWidth = shape.width * scale;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    ctx.stroke();
+    
+    // Draw caps
+    const angle1 = Math.atan2(p1.y - p2.y, p1.x - p2.x);
+    const angle2 = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+    
+    [p1, p2].forEach((point, i) => {
+      const angle = i === 0 ? angle1 : angle2;
+      ctx.save();
+      ctx.translate(point.x, point.y);
+      ctx.rotate(angle);
+      ctx.fillStyle = shape.color;
+      
+      if (shape.cap === 'arrow') {
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(-12 * scale, -6 * scale);
+        ctx.lineTo(-12 * scale, 6 * scale);
+        ctx.closePath();
+        ctx.fill();
+      } else {
+        ctx.beginPath();
+        ctx.arc(0, 0, (shape.width * 1.5 + 3) * scale, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    });
+    
+    // Draw tag
+    const center = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const tagPos = {
+      x: center.x - (dy / len) * 20 * scale,
+      y: center.y + (dx / len) * 20 * scale
+    };
+    
+    // Tag badge
+    ctx.font = `${12 * scale}px system-ui`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    const metrics = ctx.measureText(shape.tag);
+    const w = (metrics.width + 16) * scale;
+    const h = 24 * scale;
+    
+    ctx.fillStyle = shape.color;
+    ctx.beginPath();
+    ctx.roundRect(tagPos.x - w/2, tagPos.y - h/2, w, h, 12 * scale);
+    ctx.fill();
+    
+    ctx.fillStyle = getLuminance(shape.color) > 0.5 ? '#000' : '#fff';
+    ctx.fillText(shape.tag, tagPos.x, tagPos.y);
+    
+    // Measurement label
+    if (shape.measurement) {
+      const labelText = formatMeasurement(shape.measurement, shape.units);
+      const labelPos = { x: center.x + 50 * scale, y: center.y - 20 * scale };
+      
+      // Leader line
+      ctx.strokeStyle = shape.color;
+      ctx.lineWidth = 1 * scale;
+      ctx.setLineDash([4 * scale, 4 * scale]);
+      ctx.beginPath();
+      ctx.moveTo(center.x, center.y);
+      ctx.lineTo(labelPos.x, labelPos.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      
+      // Label bubble
+      ctx.font = `${13 * scale}px system-ui`;
+      const labelMetrics = ctx.measureText(labelText);
+      const labelW = (labelMetrics.width + 20) * scale;
+      const labelH = 28 * scale;
+      
+      ctx.fillStyle = 'rgba(18, 20, 27, 0.9)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.lineWidth = 1 * scale;
+      ctx.beginPath();
+      ctx.roundRect(labelPos.x - labelW/2, labelPos.y - labelH/2, labelW, labelH, 14 * scale);
+      ctx.fill();
+      ctx.stroke();
+      
+      ctx.fillStyle = '#fff';
+      ctx.fillText(labelText, labelPos.x, labelPos.y);
+    }
+    
+    ctx.restore();
+  }
+
+  function getFileName(ext) {
+    const project = document.getElementById('projectInput').value || 'Project';
+    const area = document.getElementById('areaInput').value || 'Area';
+    const timestamp = new Date().toISOString().slice(0, 10);
+    return `${project}_${area}_${timestamp}.${ext}`;
+  }
+
+  // Settings
+  function loadSettings() {
+    try {
+      const saved = localStorage.getItem('measurementAppSettings');
+      if (saved) {
+        state.settings = { ...state.settings, ...JSON.parse(saved) };
+      }
+    } catch (err) {
+      console.warn('Failed to load settings');
+    }
+  }
+
+  function saveSettings() {
+    const settings = {
+      company: document.getElementById('companyNameInput').value.trim(),
+      email: document.getElementById('companyEmailInput').value.trim(),
+      address: document.getElementById('companyAddressInput').value.trim()
+    };
+
+    const logoFile = document.getElementById('logoInput').files[0];
+    if (logoFile) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        settings.logo = reader.result;
+        state.settings = settings;
+        localStorage.setItem('measurementAppSettings', JSON.stringify(settings));
+        closeSettings();
+      };
+      reader.readAsDataURL(logoFile);
+    } else {
+      state.settings = settings;
+      localStorage.setItem('measurementAppSettings', JSON.stringify(settings));
+      closeSettings();
+    }
+  }
+
+  function openSettings() {
+    document.getElementById('companyNameInput').value = state.settings.company || '';
+    document.getElementById('companyEmailInput').value = state.settings.email || '';
+    document.getElementById('companyAddressInput').value = state.settings.address || '';
+    document.getElementById('settingsModal').classList.remove('hidden');
+    toggleMenu(false);
+  }
+
+  function closeSettings() {
+    document.getElementById('settingsModal').classList.add('hidden');
+  }
+
+  // Window resize handler
+  window.addEventListener('resize', () => {
+    setTimeout(fitToScreen, 100);
+  });
+
+  // Initialize canvas size
+  function initCanvas() {
+    const rect = container.getBoundingClientRect();
+    imageCanvas.width = drawCanvas.width = rect.width;
+    imageCanvas.height = drawCanvas.height = rect.height;
+    drawPlaceholder();
+  }
+
+  // Start the app
+  initCanvas();
+})();
+</script>
+</body>
+</html>
+
+  
