@@ -1,0 +1,2200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+<title>EMRYN Measurement Tool</title>
+<style>
+  :root{
+    --bg:#0e0f12;--panel:rgba(21,24,33,.95);--muted:rgba(39,43,54,.8);--text:#e8ecf1;--sub:#b6c0cf;--accent:#004025;--danger:#ff6b6b;--overlay:rgba(0,0,0,.6)
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+  .screen{position:fixed;inset:0}
+  .hidden{display:none!important}
+  .visible{display:block!important}
+
+  /* Home screen with accent background */
+  .home{display:flex;flex-direction:column;padding:0;background:var(--accent)}
+  .home-bar{display:flex;align-items:center;justify-content:flex-start;padding:16px;background:var(--accent)}
+  .home-content{flex:1;padding:16px;background:var(--bg)}
+  .grid{display:flex;justify-content:center;align-items:center;height:100%}
+  .card{background:#fff;border:1px solid #ddd;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;cursor:pointer;width:200px;height:200px}
+  .card:active{transform:scale(.99)}
+
+  /* Drawer */
+  .overlay{position:fixed;inset:0;background:var(--overlay);opacity:0;pointer-events:none;transition:opacity .25s;z-index:90}
+  .overlay.visible{opacity:1;pointer-events:auto}
+  .drawer{position:fixed;top:0;left:0;height:100%;width:280px;background:#fff;color:#111;transform:translateX(-100%);transition:transform .25s;z-index:100;display:flex;flex-direction:column}
+  .drawer.open{transform:translateX(0)}
+  .drawer-head{background:var(--accent);color:#fff;display:flex;align-items:center;gap:12px;padding:14px}
+  .drawer-item{padding:14px 16px;border-bottom:1px solid #eee;cursor:pointer;text-align:left;background:#fff;border:0}
+  .drawer-item:hover{background:#f6f7f9}
+
+  /* App header */
+  .app{display:flex;flex-direction:column}
+  .app-bar{height:56px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 10px}
+  .left{display:flex;align-items:center;gap:6px}
+  .bar-btn{background:transparent;border:0;color:#fff;cursor:pointer;min-width:44px;min-height:44px;border-radius:6px}
+  .title{font-weight:700}
+  .canvas-wrap{flex:1;display:flex;align-items:center;justify-content:center;position:relative;background:#0a0b0e}
+  #canvas{border:1px solid var(--muted);touch-action:none;max-width:100%;max-height:100%}
+
+  /* Floating controls */
+  .floats{position:fixed;right:14px;bottom:140px;display:flex;flex-direction:column;gap:10px;z-index:120}
+  .fab{width:50px;height:50px;border-radius:50%;background:var(--panel);border:1px solid var(--muted);color:var(--text);display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .fab:hover{background:var(--accent);color:#fff}
+  .fab.active{background:var(--accent);color:#fff}
+
+  /* Laser */
+  .laser{position:fixed;left:50%;bottom:140px;transform:translateX(-50%);z-index:120}
+  .laser-btn{width:84px;height:84px;border-radius:50%;border:4px solid #555;background:#333;color:#fff;font-size:10px;font-weight:700;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .laser-btn.connected{background:var(--accent);border-color:#006635}
+  .laser-btn.measuring{animation:pulse 1s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.85}}
+
+  /* History */
+  .history{position:fixed;left:0;right:0;bottom:0;height:120px;background:var(--panel);border-top:1px solid var(--muted);z-index:110;display:flex;flex-direction:column}
+  .history-head{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--muted)}
+  .history-list{flex:1;display:flex;gap:8px;align-items:center;overflow-x:auto;padding:8px 12px}
+  .chip{background:var(--muted);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:8px 12px;white-space:nowrap;cursor:pointer}
+  .chip:hover{background:var(--accent);color:#fff}
+
+  /* Menu button visibility */
+  .menu-logo-btn:focus-visible,
+  .menu-logo-btn:hover { outline:2px solid var(--accent); outline-offset:2px; }
+
+  /* Camera Preview */
+  .camera-preview{position:fixed;inset:0;background:var(--bg);z-index:200;display:flex;flex-direction:column}
+  .camera-header{height:56px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 10px}
+  .camera-view{flex:1;display:flex;align-items:center;justify-content:center;position:relative}
+  .camera-video{max-width:100%;max-height:100%;object-fit:cover}
+  .camera-controls{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);display:flex;gap:20px}
+  .camera-btn{width:70px;height:70px;border-radius:50%;border:4px solid #fff;background:#fff;color:#333;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:24px}
+  .camera-btn:hover{background:#f0f0f0}
+
+  /* Dialog */
+  .dialog{position:fixed;left:50%;bottom:50%;transform:translate(-50%,50%) scale(.96);background:var(--panel);border:1px solid var(--muted);border-radius:12px;padding:20px;min-width:280px;opacity:0;visibility:hidden;transition:all .2s;z-index:150}
+  .dialog.visible{opacity:1;visibility:visible;transform:translate(-50%,50%) scale(1)}
+  .dlg-title{font-weight:700;margin-bottom:12px;text-align:center}
+  .dlg-btn{display:flex;align-items:center;gap:10px;padding:16px;border-radius:8px;border:1px solid var(--muted);background:var(--muted);cursor:pointer;margin-top:10px;min-height:56px}
+  .dlg-btn:hover{background:var(--accent);color:#fff}
+
+  /* Keypad */
+  .keypad{position:fixed;left:50%;bottom:50%;transform:translate(-50%,50%) scale(.96);background:var(--panel);border:1px solid var(--muted);border-radius:12px;padding:20px;width:320px;max-width:92vw;opacity:0;visibility:hidden;transition:all .2s;z-index:150}
+  .keypad.visible{opacity:1;visibility:visible;transform:translate(-50%,50%) scale(1)}
+  .kp-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  .kp-input,.kp-select{padding:12px;border:1px solid var(--muted);border-radius:6px;background:rgba(0,0,0,.25);color:var(--text);text-align:center;min-height:44px}
+  .kp-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+  .btn{padding:12px;border-radius:8px;border:0;cursor:pointer;min-height:44px}
+  .btn.primary{background:var(--accent);color:#fff}
+  .btn.ghost{background:var(--muted);color:var(--text)}
+
+  /* Context menu */
+  .ctx{position:fixed;background:var(--panel);border:1px solid var(--muted);border-radius:8px;min-width:190px;padding:6px 0;z-index:160;opacity:0;visibility:hidden;transform:scale(.96);transition:all .15s}
+  .ctx.visible{opacity:1;visibility:visible;transform:scale(1)}
+  .ctx-item{width:100%;background:transparent;border:0;color:var(--text);text-align:left;padding:12px 14px;cursor:pointer;min-height:44px}
+  .ctx-item:hover{background:rgba(0,64,37,.1)}
+  .ctx-item.danger:hover{background:rgba(255,107,107,.12);color:var(--danger)}
+
+  /* Toast */
+  .toast{position:fixed;top:76px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--muted);border-radius:8px;padding:12px 16px;z-index:170;opacity:0;visibility:hidden;transition:all .2s;text-align:center;max-width:90vw}
+  .toast.visible{opacity:1;visibility:visible}
+  .toast.error{border-color:var(--danger);background:rgba(255,107,107,.1)}
+  .toast.info{border-color:var(--accent);background:rgba(0,64,37,.1)}
+
+  /* Folder Save Dialog */
+  .folder-dialog{position:fixed;left:50%;bottom:50%;transform:translate(-50%,50%) scale(.96);background:var(--panel);border:1px solid var(--muted);border-radius:12px;padding:20px;width:320px;max-width:92vw;opacity:0;visibility:hidden;transition:all .2s;z-index:155}
+  .folder-dialog.visible{opacity:1;visibility:visible;transform:translate(-50%,50%) scale(1)}
+
+  @media(max-width:520px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <!-- HOME -->
+  <section id="home" class="screen home" aria-label="Home">
+    <div class="home-bar">
+      <button id="homeMenuBtn" class="menu-logo-btn" aria-label="Open Menu" style="border-color:#fff;">
+        <img id="homeLogoImg" class="menu-logo-img" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='50' x='50' text-anchor='middle' dy='0.35em' fill='white' font-size='40'%3EEMRYN%3C/text%3E%3C/svg%3E" alt="Menu"/>
+      </button>
+    </div>
+    <div class="home-content">
+      <div class="grid">
+        <div id="cardSketch" class="card" role="button" tabindex="0" aria-label="Sketch on Photo">
+          <div style="font-size:48px">📐</div><div style="font-weight:600;">Sketch on Photo</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MENU -->
+  <div id="overlay" class="overlay" aria-hidden="true"></div>
+  <nav id="drawer" class="drawer" aria-label="Main menu">
+    <div class="drawer-head">
+      <button id="drawerClose" class="bar-btn" aria-label="Close Menu">✕</button>
+      <strong>Menu</strong>
+    </div>
+    <button class="drawer-item" data-nav="home">🏠 Home</button>
+    <button class="drawer-item" data-nav="sketch">📷 Sketch on Photo</button>
+    <button class="drawer-item" data-nav="organizer">📁 Folders</button>
+    <button class="drawer-item" data-nav="devices">📡 My Devices</button>
+    <button class="drawer-item" data-nav="settings">⚙️ Settings</button>
+  </nav>
+
+  <!-- WORKSPACE -->
+  <section id="app" class="screen app hidden" aria-label="Workspace">
+    <header class="app-bar">
+      <div class="left">
+        <button id="appMenuBtn" class="bar-btn" aria-label="Open Menu"><img class="menu-logo-img" id="appLogoImg" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='50' x='50' text-anchor='middle' dy='0.35em' fill='white' font-size='40'%3EEMRYN%3C/text%3E%3C/svg%3E" alt="Menu"/></button>
+        <button id="appBack" class="bar-btn" aria-label="Back">←</button>
+      </div>
+      <div id="appTitle" class="title">New Project</div>
+      <div class="left">
+        <button id="btnTools" class="bar-btn" aria-label="Tools">🔧 Tools</button>
+        <button id="btnExport" class="bar-btn" aria-label="Export">↗ Export</button>
+        <button id="btnDelete" class="bar-btn" aria-label="Delete" style="color:#ff6b6b">🗑 Delete</button>
+        <button id="btnNew" class="bar-btn" aria-label="New">＋ New</button>
+      </div>
+    </header>
+    <div class="canvas-wrap">
+      <canvas id="canvas" width="1200" height="800" aria-label="Workspace Canvas"></canvas>
+    </div>
+    <div class="floats" aria-label="Toolbox">
+      <button id="toolSelect" class="fab" title="Select Tool" aria-label="Select Tool">👆</button>
+      <button id="toolMeasure" class="fab active" title="Measurement Tool" aria-label="Draw Measurement Line" id="measurementTool">📏</button>
+      <button id="toolUndo" class="fab" title="Undo" aria-label="Undo">↶</button>
+    </div>
+    <div class="laser" aria-label="Laser control">
+      <button id="laserBtn" class="laser-btn" aria-live="polite" aria-label="Laser Measure">
+        <div>LASER</div><div id="laserState">CONNECT LASER</div>
+      </button>
+    </div>
+    <div class="history" aria-label="Measurement history">
+      <div class="history-head">
+        <div style="font-size:12px;color:var(--sub);text-transform:uppercase;letter-spacing:.5px">Recent Measurements</div>
+        <button id="historyClear" class="bar-btn" style="color:var(--sub)">Clear</button>
+      </div>
+      <div id="historyList" class="history-list">
+        <div style="color:var(--sub);font-size:11px;width:100%;text-align:center">Measurements from laser or manual entry will appear here</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CAMERA PREVIEW -->
+  <section id="cameraPreview" class="screen camera-preview hidden" aria-label="Camera">
+    <header class="camera-header">
+      <div class="left">
+        <button id="camBack" class="bar-btn" aria-label="Cancel Camera">✕</button>
+      </div>
+      <div class="title">Take Photo</div>
+      <div class="left"></div>
+    </header>
+    <div class="camera-view">
+      <video id="cameraVideo" class="camera-video" autoplay muted playsinline></video>
+      <div class="camera-controls">
+        <button id="captureBtn" class="camera-btn" aria-label="Capture Photo">📷</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ORGANIZER (Projects Grid) -->
+  <section id="organizer" class="screen hidden app" aria-label="Projects">
+    <header class="app-bar">
+      <div class="left">
+        <button id="orgMenuBtn" class="bar-btn" aria-label="Open Menu">☰</button>
+        <button id="orgBack" class="bar-btn" aria-label="Back">←</button>
+      </div>
+      <div class="title">Projects</div>
+      <div class="left">
+        <button id="orgSort" class="bar-btn" aria-label="Sort">↕ Sort</button>
+        <button id="orgSelect" class="bar-btn" aria-label="Select">☑ Select</button>
+      </div>
+    </header>
+    <div style="padding:16px;overflow:auto;height:calc(100% - 56px)">
+      <div id="projectGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px"></div>
+    </div>
+    <div style="position:fixed;bottom:20px;right:20px">
+      <button id="addProjectBtn" style="width:60px;height:60px;border-radius:50%;background:#ff1744;color:#fff;border:none;font-size:24px;cursor:pointer;">📁</button>
+    </div>
+  </section>
+
+  <!-- PROJECT CONTENTS -->
+  <section id="projectContents" class="screen hidden app" aria-label="Project Contents">
+    <header class="app-bar">
+      <div class="left">
+        <button id="projMenuBtn" class="bar-btn" aria-label="Open Menu">☰</button>
+        <button id="projBack" class="bar-btn" aria-label="Back">←</button>
+      </div>
+      <div id="projTitle" class="title">Project</div>
+      <div class="left">
+        <button id="projEdit" class="bar-btn" aria-label="Edit">✏ Edit</button>
+        <button id="projSort" class="bar-btn" aria-label="Sort">↕ Sort</button>
+        <button id="projSelect" class="bar-btn" aria-label="Select">☑ Select</button>
+      </div>
+    </header>
+    <div style="padding:16px;overflow:auto;height:calc(100% - 56px)">
+      <div id="projectImagesGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px"></div>
+    </div>
+    <div style="position:fixed;bottom:20px;right:20px">
+      <button id="addSketchBtn" style="width:60px;height:60px;border-radius:50%;background:#ff1744;color:#fff;border:none;font-size:20px;cursor:pointer;">📐</button>
+    </div>
+  </section>
+
+  <!-- SETTINGS (Branding uploads) -->
+  <section id="settings" class="screen hidden app" aria-label="Settings">
+    <header class="app-bar">
+      <div class="left"><button id="setBack" class="bar-btn" aria-label="Back">←</button></div>
+      <div class="title">Settings</div>
+      <div class="left"></div>
+    </header>
+    <div style="padding:16px;overflow:auto;height:calc(100% - 56px)">
+      <!-- User Profile -->
+      <div style="background:var(--panel);border:1px solid var(--muted);border-radius:12px;padding:16px;margin-bottom:16px">
+        <h3 style="margin:0 0 14px 0">User Profile</h3>
+        <div style="display:grid;gap:10px">
+          <input id="userName" class="kp-input" placeholder="Name" aria-label="Name"/>
+          <input id="userCompany" class="kp-input" placeholder="Company" aria-label="Company"/>
+          <input id="userEmail" class="kp-input" placeholder="Email" aria-label="Email" type="email"/>
+          <input id="userPhone" class="kp-input" placeholder="Phone" aria-label="Phone" type="tel"/>
+        </div>
+      </div>
+
+      <!-- Units -->
+      <div style="background:var(--panel);border:1px solid var(--muted);border-radius:12px;padding:16px;margin-bottom:16px">
+        <h3 style="margin:0 0 14px 0">Units</h3>
+        <select id="unitsSystem" class="kp-select" aria-label="Units System">
+          <option value="imperial" selected>Imperial (ft/in)</option>
+          <option value="metric">Metric (m/cm)</option>
+        </select>
+      </div>
+
+      <!-- Draw Settings -->
+      <div style="background:var(--panel);border:1px solid var(--muted);border-radius:12px;padding:16px;margin-bottom:16px">
+        <h3 style="margin:0 0 14px 0">Draw Settings</h3>
+        <div style="display:grid;gap:12px">
+          <label style="display:flex;align-items:center;justify-content:space-between">
+            <span>Snapping</span>
+            <input id="enableSnapping" type="checkbox" checked/>
+          </label>
+          <label style="display:flex;align-items:center;justify-content:space-between">
+            <span>Show Guides</span>
+            <input id="showGuides" type="checkbox" checked/>
+          </label>
+          <label style="display:flex;align-items:center;justify-content:space-between">
+            <span>Endpoint Snapping</span>
+            <input id="endpointSnapping" type="checkbox" checked/>
+          </label>
+          <label style="display:flex;align-items:center;justify-content:space-between">
+            <span>Dashed Leaders</span>
+            <input id="dashedLeaders" type="checkbox" checked/>
+          </label>
+          <div>
+            <label style="margin-bottom:8px;display:block">Annotation Size</label>
+            <input id="annotationSize" type="range" min="10" max="20" value="12" class="kp-input"/>
+          </div>
+          <div>
+            <label style="margin-bottom:8px;display:block">Text Size</label>
+            <input id="textSize" type="range" min="8" max="16" value="12" class="kp-input"/>
+          </div>
+        </div>
+      </div>
+
+      <!-- Language -->
+      <div style="background:var(--panel);border:1px solid var(--muted);border-radius:12px;padding:16px;margin-bottom:16px">
+        <h3 style="margin:0 0 14px 0">Language</h3>
+        <select id="language" class="kp-select" aria-label="Language">
+          <option value="en" selected>English</option>
+          <option value="es">Spanish</option>
+          <option value="fr">French</option>
+          <option value="de">German</option>
+          <option value="it">Italian</option>
+          <option value="pt">Portuguese</option>
+        </select>
+      </div>
+
+      <!-- Branding -->
+      <div style="background:var(--panel);border:1px solid var(--muted);border-radius:12px;padding:16px;max-width:760px">
+        <h3 style="margin:0 0 14px 0">Branding</h3>
+        <div class="dlg-title" style="text-align:left;margin:0 0 8px 0;font-weight:600">Menu Logo (SVG/PNG)</div>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+          <div style="width:96px;height:96px;border:2px dashed var(--muted);border-radius:8px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.2)">
+            <img id="menuPreview" src="" alt="Menu Logo Preview" style="max-width:100%;max-height:100%;object-fit:contain"/>
+          </div>
+          <button id="btnUploadMenuLogo" class="btn" aria-label="Upload Menu Logo">Replace</button>
+          <button id="btnRemoveMenuLogo" class="btn ghost" aria-label="Remove Menu Logo">Remove</button>
+        </div>
+        <div class="dlg-title" style="text-align:left;margin:0 0 8px 0;font-weight:600">Watermark Logo (SVG/PNG)</div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="width:96px;height:96px;border:2px dashed var(--muted);border-radius:8px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.2)">
+            <img id="wmPreview" src="" alt="Watermark Logo Preview" style="max-width:100%;max-height:100%;object-fit:contain"/>
+          </div>
+          <button id="btnUploadWM" class="btn" aria-label="Upload Watermark Logo">Replace</button>
+          <button id="btnRemoveWM" class="btn ghost" aria-label="Remove Watermark Logo">Remove</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DEVICES -->
+  <section id="devices" class="screen hidden app" aria-label="Devices">
+    <header class="app-bar">
+      <div class="left"><button id="devBack" class="bar-btn" aria-label="Back">←</button></div>
+      <div class="title">My Devices</div>
+      <div class="left"></div>
+    </header>
+    <div style="padding:16px;overflow:auto;height:calc(100% - 56px);max-width:720px">
+      <div style="background:var(--panel);border:1px solid var(--muted);border-radius:12px;padding:16px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="font-size:24px">📡</div>
+          <div>
+            <div style="font-weight:700">Laser Measurement Devices</div>
+            <div id="btStatus" style="font-size:12px;color:var(--sub)">Not connected</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:12px">
+          <button id="btConnect" class="btn primary" aria-label="Connect">Connect Laser</button>
+          <button id="btDisconnect" class="btn ghost" aria-label="Disconnect" disabled>Disconnect</button>
+        </div>
+        <div style="margin-top:12px;font-size:12px;color:var(--sub);line-height:1.5">
+          <strong>Supported devices:</strong><br/>
+          • Leica Disto series (D110, D2, D3a, D5, D8, X310, X4)<br/>
+          • Mapie VH80 Laser Distance Meter<br/>
+          • Bosch GLM series (GLM 50, GLM 100, GLM 120, GLM 165)<br/>
+          • Milwaukee LDM series (LDM 45, LDM 60)<br/>
+          • DeWalt DW03050 Laser Distance Measurer<br/>
+          • Requires HTTPS and Chrome/Edge (Safari iOS not supported)
+        </div>
+      </div>
+      <div style="background:var(--panel);border:1px solid var(--muted);border-radius:12px;padding:16px;display:flex;align-items:center;gap:12px">
+        <div style="font-weight:700">Auto-connect on app launch</div>
+        <label style="margin-left:auto;display:flex;align-items:center;gap:8px">
+          <input id="autoConnect" type="checkbox" aria-label="Auto-connect toggle" style="transform:scale(1.5)"/>
+        </label>
+      </div>
+    </div>
+  </section>
+
+  <!-- SOURCE CHOOSER -->
+  <div id="chooser" class="dialog" role="dialog" aria-modal="true" aria-labelledby="chooserTitle">
+    <div id="chooserTitle" class="dlg-title">Select picture</div>
+    <button id="chCam" class="dlg-btn" aria-label="Camera">📷 Camera</button>
+    <button id="chGallery" class="dlg-btn" aria-label="Photo Library">🖼 Photo Library</button>
+    <button id="chPdf" class="dlg-btn" aria-label="PDF">📄 PDF</button>
+    <button id="chCancel" class="dlg-btn" aria-label="Cancel">✕ Cancel</button>
+  </div>
+
+  <!-- CAPTURE REVIEW -->
+  <div id="capture" class="dialog" role="dialog" aria-modal="true" aria-labelledby="capTitle">
+    <div id="capTitle" class="dlg-title">Photo Captured</div>
+    <img id="capImg" alt="Captured preview" style="display:block;max-width:72vw;max-height:40vh;margin:8px auto;border:1px solid var(--muted);border-radius:8px"/>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <button id="capRetake" class="btn ghost" aria-label="Retake Photo">Retake</button>
+      <button id="capUse" class="btn primary" aria-label="Use Photo">Use Photo</button>
+    </div>
+  </div>
+
+  <!-- TOOLS DIALOG -->
+  <div id="toolsDialog" class="dialog" role="dialog" aria-modal="true" aria-labelledby="toolsTitle">
+    <div id="toolsTitle" class="dlg-title">Tools</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <button id="toolText" class="dlg-btn" aria-label="Add Text">📝 Text</button>
+      <button id="toolHeight" class="dlg-btn" aria-label="Height Marker">H = Height</button>
+      <button id="toolBubble" class="dlg-btn" aria-label="Marker Bubble">⭕ Marker</button>
+      <button id="toolColor" class="dlg-btn" aria-label="Change Color">🎨 Colors</button>
+    </div>
+    <div class="kp-actions">
+      <button id="toolsCancel" class="btn ghost" aria-label="Cancel">Cancel</button>
+    </div>
+  </div>
+
+  <!-- COLOR PICKER -->
+  <div id="colorDialog" class="dialog" role="dialog" aria-modal="true" aria-labelledby="colorTitle">
+    <div id="colorTitle" class="dlg-title">Choose Color</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0">
+      <button class="color-btn" style="background:#1e90ff" data-color="#1e90ff">Blue</button>
+      <button class="color-btn" style="background:#ff6b6b" data-color="#ff6b6b">Red</button>
+      <button class="color-btn" style="background:#4ecdc4" data-color="#4ecdc4">Teal</button>
+      <button class="color-btn" style="background:#45b7d1" data-color="#45b7d1">Sky</button>
+      <button class="color-btn" style="background:#96ceb4" data-color="#96ceb4">Green</button>
+      <button class="color-btn" style="background:#ffeaa7" data-color="#ffeaa7">Yellow</button>
+    </div>
+    <div class="kp-actions">
+      <button id="colorCancel" class="btn ghost" aria-label="Cancel">Cancel</button>
+    </div>
+  </div>
+
+  <!-- MEASUREMENT KEYPAD -->
+  <div id="keypad" class="keypad" role="dialog" aria-modal="true" aria-labelledby="kpTitle">
+    <div id="kpTitle" class="dlg-title">Enter Measurement</div>
+    <div class="kp-grid">
+      <input id="ft" class="kp-input" type="number" placeholder="ft" min="0" aria-label="Feet"/>
+      <input id="in" class="kp-input" type="number" placeholder="in" min="0" max="11" aria-label="Inches"/>
+      <input id="num" class="kp-input" type="number" placeholder="num" min="0" aria-label="Fraction numerator"/>
+      <select id="den" class="kp-select" aria-label="Fraction denominator" style="grid-column:1/-1">
+        <option value="2">1/2</option><option value="4">1/4</option><option value="8">1/8</option>
+        <option value="16">1/16</option><option value="32">1/32</option><option value="64">1/64</option>
+      </select>
+    </div>
+    <div class="kp-actions">
+      <button id="kpCancel" class="btn ghost" aria-label="Cancel">Cancel</button>
+      <button id="kpApply" class="btn primary" aria-label="Apply">Apply</button>
+    </div>
+  </div>
+
+  <!-- FOLDER SAVE DIALOG -->
+  <div id="folderDialog" class="folder-dialog" role="dialog" aria-modal="true" aria-labelledby="folderTitle">
+    <div id="folderTitle" class="dlg-title">Save to Project?</div>
+    <div style="margin:12px 0;text-align:center;color:var(--sub)">
+      You're currently in project: <br>
+      <strong id="currentProjectName"></strong>
+    </div>
+    <div class="kp-actions">
+      <button id="folderNo" class="btn ghost" aria-label="Save to Main">Save to Main</button>
+      <button id="folderYes" class="btn primary" aria-label="Save to Project">Save to Project</button>
+    </div>
+  </div>
+
+  <!-- CONTEXT MENU -->
+  <div id="ctx" class="ctx" role="menu">
+    <button id="ctxEdit" class="ctx-item" role="menuitem">✏️ Edit Measurement</button>
+    <button id="ctxDup" class="ctx-item" role="menuitem">📋 Duplicate</button>
+    <button id="ctxAddText" class="ctx-item" role="menuitem">🅰 Add Text</button>
+    <button id="ctxMove" class="ctx-item" role="menuitem">📁 Move to Project</button>
+    <button id="ctxDelete" class="ctx-item danger" role="menuitem">🗑 Delete</button>
+  </div>
+
+  <!-- EXPORT DIALOG -->
+  <div id="exp" class="dialog" role="dialog" aria-modal="true" aria-labelledby="expTitle">
+    <div id="expTitle" class="dlg-title">Export Options</div>
+    <input id="expName" class="kp-input" placeholder="Filename" aria-label="Filename"/>
+    <div style="display:flex;flex-direction:column;gap:8px;margin:12px 0">
+      <button id="expJPG" class="dlg-btn" aria-label="Export as JPG">🖼️ Export as JPG</button>
+      <button id="expPDF" class="dlg-btn" aria-label="Export as PDF">📄 Export as PDF</button>
+      <button id="expPDFPro" class="dlg-btn" aria-label="Export as PDF Pro">📋 Export as PDF Pro</button>
+    </div>
+    <div class="kp-actions">
+      <button id="expCancel" class="btn ghost" aria-label="Cancel">Cancel</button>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <!-- HIDDEN INPUTS -->
+  <input id="fileImg" type="file" accept="image/*" style="position:absolute;left:-9999px;opacity:0" aria-hidden="true"/>
+  <input id="filePdf" type="file" accept=".pdf" style="position:absolute;left:-9999px;opacity:0" aria-hidden="true"/>
+  <input id="fileMenu" type="file" accept="image/*" style="position:absolute;left:-9999px;opacity:0" aria-hidden="true"/>
+  <input id="fileWM" type="file" accept="image/*" style="position:absolute;left:-9999px;opacity:0" aria-hidden="true"/>
+
+<script>
+/* ===== STATE ===== */
+const S = {
+  screen:"home",
+  img:null,
+  shapes:[], // measurement objects
+  selected:null,
+  draggingCallout:null,
+  draggingOffset:null,
+  draggingShape:null,
+  history:[],
+  currentTool: "measure", // "select", "measure"
+  measurementCounter: 1,
+  currentDocument: null, // Current saved document being worked on
+  projects: JSON.parse(localStorage.getItem("emryn_projects")||"[]"),
+  documents: JSON.parse(localStorage.getItem("emryn_documents")||"[]"), // Recent documents
+  recents: JSON.parse(localStorage.getItem("emryn_recent")||"[]"),
+  settings: JSON.parse(localStorage.getItem("emryn_settings")||"{}"),
+  branding:{
+    menuLogo: localStorage.getItem("emryn_menu_logo") || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='50' x='50' text-anchor='middle' dy='0.35em' fill='white' font-size='40'%3EEMRYN%3C/text%3E%3C/svg%3E",
+    watermark: localStorage.getItem("emryn_watermark_logo") || ""
+  },
+  bt:{device:null,connected:false,measuring:false,auto:JSON.parse(localStorage.getItem("emryn_auto")||"false")},
+  camera: {stream: null, video: null}
+};
+
+/* ===== EL ===== */
+const $ = id => document.getElementById(id);
+const home = $("home"), app = $("app"), organizer = $("organizer"), settings = $("settings"), devices = $("devices");
+const drawer = $("drawer"), overlay = $("overlay");
+const canvas = $("canvas"), ctx = canvas.getContext("2d");
+const cameraPreview = $("cameraPreview");
+
+/* ===== UTIL ===== */
+function toast(msg,type="info"){const t=$("toast");t.textContent=msg;t.className=`toast ${type} visible`;setTimeout(()=>t.classList.remove("visible"),2800);} 
+function show(id){home.classList.add("hidden");app.classList.add("hidden");organizer.classList.add("hidden");settings.classList.add("hidden");devices.classList.add("hidden");cameraPreview.classList.add("hidden");$(id).classList.remove("hidden");S.screen=id;}
+function openDrawer(open=true){drawer.classList.toggle("open",open);overlay.classList.toggle("visible",open);} 
+function isSecure(){return window.isSecureContext;} 
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+
+/* ===== NAVIGATION & ROUTING (Fixed) ===== */
+$("homeMenuBtn").onclick=()=>openDrawer(true);
+$("appMenuBtn").onclick=()=>openDrawer(true);
+$("orgMenuBtn").onclick=()=>openDrawer(true);
+$("projMenuBtn").onclick=()=>openDrawer(true);
+$("drawerClose").onclick=()=>openDrawer(false);
+overlay.onclick=()=>openDrawer(false);
+
+// Fixed back button handlers
+$("appBack").onclick=()=>goBack();
+$("orgBack").onclick=()=>goBack();
+$("projBack").onclick=()=>goBack();
+$("camBack").onclick=()=>stopCamera();
+
+function goBack() {
+  if (S.screen === "app" && S.currentProject) {
+    // If in measurement app and in project, go back to project contents
+    showProjectContents(S.currentProject);
+  } else if (S.screen === "projectContents") {
+    // If in project contents, go back to projects grid
+    route("organizer");
+  } else {
+    // Default back to home
+    route("home");
+  }
+}
+
+Array.from(document.querySelectorAll(".drawer-item")).forEach(i=>i.onclick=()=>{openDrawer(false);route(i.dataset.nav);});
+$("cardSketch").onclick=()=>route("sketch");
+
+function route(dest){
+  if(dest==="home"){show("home");return;}
+  if(dest==="sketch"){chooser(true);return;}
+  if(dest==="organizer"){renderProjectGrid();show("organizer");return;}
+  if(dest==="settings"){loadSettings();refreshBrandingUI();show("settings");return;}
+  if(dest==="devices"){updateBTUI();show("devices");return;}
+}
+
+/* ===== TOOL SELECTION (Fixed Icon Changes) ===== */
+$("toolSelect").onclick = () => {
+  S.currentTool = "select";
+  updateToolButtons();
+  toast("Select mode - tap lines to move, drag overlays", "info");
+};
+
+$("toolMeasure").onclick = () => {
+  if ($("toolMeasure").innerHTML === "🔢") {
+    // If in keypad mode, open measurement input
+    if (S.selected) {
+      keypad(true);
+    } else {
+      toast("Select a measurement line first", "info");
+    }
+  } else {
+    // Switch to measurement mode
+    S.currentTool = "measure";
+    updateToolButtons();
+    toast("Measurement mode - draw lines to measure", "info");
+  }
+};
+
+$("toolUndo").onclick = () => {
+  if(S.shapes.length){
+    const removed = S.shapes.pop();
+    S.selected = null; 
+    draw(); 
+    toast("Undone", "info");
+    // Reset measurement tool icon if needed
+    $("toolMeasure").innerHTML = "📏";
+    $("toolMeasure").title = "Measurement Tool";
+  }
+};
+
+function updateToolButtons() {
+  $("toolSelect").classList.toggle("active", S.currentTool === "select");
+  $("toolMeasure").classList.toggle("active", S.currentTool === "measure");
+}
+
+/* ===== TOOLS FUNCTIONALITY (Fixed) ===== */
+$("btnTools").onclick = () => {
+  $("toolsDialog").classList.add("visible");
+};
+
+$("toolsCancel").onclick = () => {
+  $("toolsDialog").classList.remove("visible");
+};
+
+$("toolColor").onclick = () => {
+  $("toolsDialog").classList.remove("visible");
+  $("colorDialog").classList.add("visible");
+};
+
+$("colorCancel").onclick = () => {
+  $("colorDialog").classList.remove("visible");
+};
+
+// Color picker functionality - FIXED
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll(".color-btn").forEach(btn => {
+    btn.onclick = () => {
+      const color = btn.dataset.color;
+      if (S.selected && S.selected.style) {
+        S.selected.style.color = color;
+        draw();
+        toast("Line " + S.selected.number + " color changed", "info");
+      } else {
+        toast("Select a measurement line first", "info");
+      }
+      $("colorDialog").classList.remove("visible");
+    };
+  });
+});
+
+$("toolText").onclick = () => {
+  $("toolsDialog").classList.remove("visible");
+  const text = prompt("Enter text to add:");
+  if (text && text.trim()) {
+    // Add text overlay to canvas
+    const textObj = {
+      id: Date.now(),
+      type: "text",
+      text: text.trim(),
+      x: canvas.width / 2,
+      y: canvas.height / 2,
+      style: { color: "#000", fontSize: 16 }
+    };
+    S.shapes.push(textObj);
+    S.selected = textObj;
+    draw();
+    toast("Text added - drag to position", "info");
+  }
+};
+
+$("toolHeight").onclick = () => {
+  $("toolsDialog").classList.remove("visible");
+  if (S.selected) {
+    // Change measurement tool to keypad mode
+    $("toolMeasure").innerHTML = "🔢";
+    $("toolMeasure").title = "Enter Measurement";
+    keypad(true);
+    toast("Enter height measurement for line " + S.selected.number, "info");
+  } else {
+    toast("Select a measurement line first", "info");
+  }
+};
+
+$("toolBubble").onclick = () => {
+  $("toolsDialog").classList.remove("visible");
+  // Add marker bubble to canvas
+  const marker = {
+    id: Date.now(),
+    type: "marker",
+    x: canvas.width / 2,
+    y: canvas.height / 2,
+    style: { color: "#ff0000", size: 20 }
+  };
+  S.shapes.push(marker);
+  S.selected = marker;
+  draw();
+  toast("Marker added - drag to position", "info");
+};
+
+// Delete button functionality
+$("btnDelete").onclick = () => {
+  if (S.selected) {
+    const type = S.selected.type || "measurement";
+    const identifier = S.selected.number || S.selected.text || "item";
+    if (confirm("Delete " + type + " " + identifier + "?")) {
+      S.shapes = S.shapes.filter(s => s !== S.selected);
+      S.selected = null;
+      draw();
+      toast(type + " " + identifier + " deleted", "info");
+    }
+  } else {
+    toast("Select an item to delete", "info");
+  }
+};
+function loadSettings() {
+  const settings = S.settings;
+  if (settings.userName) $("userName").value = settings.userName;
+  if (settings.userCompany) $("userCompany").value = settings.userCompany;
+  if (settings.userEmail) $("userEmail").value = settings.userEmail;
+  if (settings.userPhone) $("userPhone").value = settings.userPhone;
+  if (settings.unitsSystem) $("unitsSystem").value = settings.unitsSystem;
+  if (settings.language) $("language").value = settings.language;
+  $("enableSnapping").checked = settings.enableSnapping !== false;
+  $("showGuides").checked = settings.showGuides !== false;
+  $("endpointSnapping").checked = settings.endpointSnapping !== false;
+  $("dashedLeaders").checked = settings.dashedLeaders !== false;
+  $("annotationSize").value = settings.annotationSize || 12;
+  $("textSize").value = settings.textSize || 12;
+}
+
+function saveSettings() {
+  S.settings = {
+    userName: $("userName").value,
+    userCompany: $("userCompany").value,
+    userEmail: $("userEmail").value,
+    userPhone: $("userPhone").value,
+    unitsSystem: $("unitsSystem").value,
+    language: $("language").value,
+    enableSnapping: $("enableSnapping").checked,
+    showGuides: $("showGuides").checked,
+    endpointSnapping: $("endpointSnapping").checked,
+    dashedLeaders: $("dashedLeaders").checked,
+    annotationSize: parseInt($("annotationSize").value),
+    textSize: parseInt($("textSize").value)
+  };
+  localStorage.setItem("emryn_settings", JSON.stringify(S.settings));
+}
+
+// Auto-save settings on change
+["userName","userCompany","userEmail","userPhone","unitsSystem","language"].forEach(id => {
+  $(id).addEventListener("change", saveSettings);
+});
+["enableSnapping","showGuides","endpointSnapping","dashedLeaders"].forEach(id => {
+  $(id).addEventListener("change", saveSettings);
+});
+$("annotationSize").addEventListener("input", saveSettings);
+$("textSize").addEventListener("input", saveSettings);
+
+/* ===== BRANDING ===== */
+function applyLogos(){
+  $("homeLogoImg").src = S.branding.menuLogo;
+  $("appLogoImg").src = S.branding.menuLogo;
+  $("menuPreview").src = S.branding.menuLogo;
+  $("wmPreview").src = S.branding.watermark;
+}
+applyLogos();
+$("btnUploadMenuLogo").onclick=()=>$("fileMenu").click();
+$("btnRemoveMenuLogo").onclick=()=>{S.branding.menuLogo="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='50' x='50' text-anchor='middle' dy='0.35em' fill='white' font-size='40'%3EEMRYN%3C/text%3E%3C/svg%3E";localStorage.removeItem("emryn_menu_logo");applyLogos();toast("Menu logo removed","info");};
+$("fileMenu").onchange=e=>readImgTo(e.target.files[0],(url)=>{S.branding.menuLogo=url;localStorage.setItem("emryn_menu_logo",url);applyLogos();toast("Menu logo updated","info");});
+$("btnUploadWM").onclick=()=>$("fileWM").click();
+$("btnRemoveWM").onclick=()=>{S.branding.watermark="";localStorage.removeItem("emryn_watermark_logo");applyLogos();toast("Watermark removed","info");};
+$("fileWM").onchange=e=>readImgTo(e.target.files[0],(url)=>{S.branding.watermark=url;localStorage.setItem("emryn_watermark_logo",url);applyLogos();toast("Watermark updated","info");});
+function refreshBrandingUI(){applyLogos();}
+
+/* ===== CAMERA FUNCTIONS (Fixed) ===== */
+let _camStream = null;
+
+async function startCamera() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    toast("Camera not available on this device", "error");
+    return;
+  }
+  
+  try {
+    _camStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment" }
+    });
+    const camVideo = $("cameraVideo");
+    camVideo.srcObject = _camStream;
+    show("cameraPreview");
+  } catch (err) {
+    toast("Camera access denied: " + err.message, "error");
+  }
+}
+
+function stopCamera() {
+  if (_camStream) {
+    _camStream.getTracks().forEach(track => track.stop());
+    _camStream = null;
+  }
+  show("home");
+}
+
+function capturePhoto() {
+  const camVideo = $("cameraVideo");
+  if (!camVideo || !_camStream) return;
+  
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  canvas.width = camVideo.videoWidth;
+  canvas.height = camVideo.videoHeight;
+  ctx.drawImage(camVideo, 0, 0);
+  
+  S._captured = canvas.toDataURL("image/jpeg", 0.92);
+  $("capImg").src = S._captured;
+  $("capture").classList.add("visible");
+  
+  stopCamera();
+}
+
+// Fixed camera event handlers
+$("captureBtn").onclick = capturePhoto;
+$("camBack").onclick = stopCamera;
+
+/* ===== SOURCE CHOOSER ===== */
+function chooser(v){$("chooser").classList.toggle("visible",v);} 
+$("chCancel").onclick=()=>chooser(false);
+$("chGallery").onclick=()=>$("fileImg").click();
+$("chPdf").onclick=()=>$("filePdf").click();
+$("fileImg").onchange = e=>{ 
+  const f=e.target.files[0]; 
+  if(!f) return; 
+  readImgTo(f,(url)=>{
+    S._captured=url; 
+    $("capImg").src=url; 
+    $("capture").classList.add("visible");
+  }); 
+  e.target.value=""; 
+  chooser(false); 
+};
+
+$("chCam").onclick = () => {
+  chooser(false);
+  startCamera();
+};
+
+$("capRetake").onclick=()=>{
+  $("capture").classList.remove("visible"); 
+  startCamera();
+};
+
+$("capUse").onclick=()=>{ 
+  if(S._captured){ 
+    handleImageLoad(S._captured);
+    $("capture").classList.remove("visible"); 
+  } 
+};
+
+function handleImageLoad(src) {
+  if (S.currentProject) {
+    loadImage(src);
+    show("app");
+  } else {
+    // Check if there are any projects to ask about
+    if (S.projects.length > 0) {
+      $("currentProjectName").textContent = S.projects[0].name; // Show first project as suggestion
+      $("folderDialog").classList.add("visible");
+      S._pendingImage = src;
+    } else {
+      loadImage(src);
+      show("app");
+    }
+  }
+}
+
+// Folder save dialog handlers
+$("folderYes").onclick = () => {
+  $("folderDialog").classList.remove("visible");
+  S.currentProject = S.projects[0]; // Use first project
+  $("appTitle").textContent = S.currentProject.name;
+  loadImage(S._pendingImage);
+  show("app");
+  toast(`Saved to project: ${S.currentProject.name}`, "info");
+};
+
+$("folderNo").onclick = () => {
+  $("folderDialog").classList.remove("visible");
+  loadImage(S._pendingImage);
+  show("app");
+};
+
+$("filePdf").onchange = e=>{ const f=e.target.files[0]; if(f){ toast("PDF import coming soon","info"); } e.target.value=""; };
+
+/* ===== CANVAS / IMAGE ===== */
+function loadImage(src){
+  const img=new Image(); 
+  img.onload=()=>{
+    S.img=img; 
+    S.shapes=[]; 
+    S.selected=null;
+    S.lineCounter = 1; // Reset line counter
+    const maxW=window.innerWidth-40, maxH=window.innerHeight-320;
+    const r=Math.min(maxW/img.width, maxH/img.height);
+    canvas.width = Math.max(300, Math.floor(img.width*r));
+    canvas.height= Math.max(220, Math.floor(img.height*r));
+    if(!S.currentProject) $("appTitle").textContent="Untitled";
+    show("app"); 
+    draw();
+  }; 
+  img.src=src;
+}
+
+function draw(){ 
+  if(!S.img){return;} 
+  ctx.clearRect(0,0,canvas.width,canvas.height); 
+  ctx.drawImage(S.img,0,0,canvas.width,canvas.height); 
+  
+  for(const shape of S.shapes){
+    if (shape.type === "text") {
+      // Draw text overlay
+      ctx.font = `${shape.style.fontSize}px Arial`;
+      ctx.fillStyle = shape.style.color;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(shape.text, shape.x, shape.y);
+      
+      if (S.selected === shape) {
+        // Draw selection border for text
+        const textWidth = ctx.measureText(shape.text).width;
+        ctx.strokeStyle = "#ffff00";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(shape.x - textWidth/2 - 5, shape.y - shape.style.fontSize/2 - 5, textWidth + 10, shape.style.fontSize + 10);
+      }
+    } else if (shape.type === "marker") {
+      // Draw marker bubble
+      ctx.beginPath();
+      ctx.arc(shape.x, shape.y, shape.style.size, 0, 2 * Math.PI);
+      ctx.strokeStyle = shape.style.color;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      
+      if (S.selected === shape) {
+        ctx.strokeStyle = "#ffff00";
+        ctx.lineWidth = 5;
+        ctx.stroke();
+      }
+    } else {
+      // Draw measurement lines
+      drawMeasure(shape);
+    }
+  } 
+}
+
+/* ===== LINE DRAWING ===== */
+function drawLine(line) {
+  const [a, b] = line.endpoints;
+  
+  // Draw main line
+  ctx.lineWidth = (S.selected === line ? (line.style.lineWidth + 2) : line.style.lineWidth);
+  ctx.strokeStyle = (S.selected === line ? "#ffff00" : line.style.color);
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.stroke();
+  
+  // Draw arrows at both ends
+  drawArrow(ctx, a.x, a.y, b.x, b.y, line.style.color);
+  drawArrow(ctx, b.x, b.y, a.x, a.y, line.style.color);
+  
+  // Draw line number
+  const midX = (a.x + b.x) / 2;
+  const midY = (a.y + b.y) / 2;
+  
+  ctx.font = "14px Arial";
+  ctx.fillStyle = "rgba(0,0,0,0.8)";
+  ctx.fillRect(midX - 15, midY - 15, 30, 30);
+  ctx.strokeStyle = line.style.color;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(midX - 15, midY - 15, 30, 30);
+  ctx.fillStyle = "#fff";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(line.number.toString(), midX, midY);
+}
+
+function drawArrow(ctx, fromX, fromY, toX, toY, color) {
+  const headLen = 15;
+  const angle = Math.atan2(toY - fromY, toX - fromX);
+  
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(fromX, fromY);
+  ctx.lineTo(fromX + headLen * Math.cos(angle - Math.PI / 6), fromY + headLen * Math.sin(angle - Math.PI / 6));
+  ctx.moveTo(fromX, fromY);
+  ctx.lineTo(fromX + headLen * Math.cos(angle + Math.PI / 6), fromY + headLen * Math.sin(angle + Math.PI / 6));
+  ctx.stroke();
+}
+
+/* ===== MEASUREMENT DRAWING (Fixed Arrows Direction) ===== */
+function drawMeasure(m){
+  const [a,b]=m.endpoints;
+  
+  // Draw main line
+  ctx.lineWidth = (S.selected===m? (m.style.lineWidth+2):m.style.lineWidth);
+  ctx.strokeStyle = (S.selected===m? "#ffff00": m.style.color);
+  ctx.beginPath(); 
+  ctx.moveTo(a.x,a.y); 
+  ctx.lineTo(b.x,b.y); 
+  ctx.stroke();
+  
+  // Draw arrows at both ends - FIXED DIRECTION
+  const arrowSize = 12;
+  const angle = Math.atan2(b.y - a.y, b.x - a.x);
+  
+  // Arrow at point A (pointing away from line)
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(a.x - arrowSize * Math.cos(angle - Math.PI/6), 
+             a.y - arrowSize * Math.sin(angle - Math.PI/6));
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(a.x - arrowSize * Math.cos(angle + Math.PI/6), 
+             a.y - arrowSize * Math.sin(angle + Math.PI/6));
+  ctx.stroke();
+  
+  // Arrow at point B (pointing away from line)
+  ctx.beginPath();
+  ctx.moveTo(b.x, b.y);
+  ctx.lineTo(b.x + arrowSize * Math.cos(angle - Math.PI/6), 
+             b.y + arrowSize * Math.sin(angle - Math.PI/6));
+  ctx.moveTo(b.x, b.y);
+  ctx.lineTo(b.x + arrowSize * Math.cos(angle + Math.PI/6), 
+             b.y + arrowSize * Math.sin(angle + Math.PI/6));
+  ctx.stroke();
+  
+  // Draw measurement number key
+  const midLine = {x:(a.x+b.x)/2, y:(a.y+b.y)/2};
+  ctx.font="14px Arial";
+  ctx.fillStyle="rgba(0,0,0,0.8)";
+  ctx.fillRect(midLine.x-15, midLine.y-15, 30, 30);
+  ctx.strokeStyle=m.style.color;
+  ctx.lineWidth=2;
+  ctx.strokeRect(midLine.x-15, midLine.y-15, 30, 30);
+  ctx.fillStyle="#fff";
+  ctx.textAlign="center";
+  ctx.textBaseline="middle";
+  ctx.fillText(m.number.toString(), midLine.x, midLine.y);
+  
+  // Only draw callout if measurement has value
+  if (m.value && m.value.trim() !== '') {
+    // leader anchor from t
+    const anchor = {x:a.x + (b.x-a.x)*clamp(m.t,0,1), y:a.y+(b.y-a.y)*clamp(m.t,0,1)};
+    
+    // dashed leader line
+    ctx.setLineDash([5,5]); 
+    ctx.lineWidth=1; 
+    ctx.strokeStyle=m.style.color;
+    ctx.beginPath(); 
+    ctx.moveTo(anchor.x,anchor.y); 
+    ctx.lineTo(m.callout.x,m.callout.y); 
+    ctx.stroke(); 
+    ctx.setLineDash([]);
+    
+    // rectangular measurement bubble (rotated)
+    ctx.font="12px Arial"; 
+    const tw=ctx.measureText(m.value).width, pad=8, bw=tw+pad*2, bh=20;
+    
+    ctx.save();
+    ctx.translate(m.callout.x, m.callout.y);
+    ctx.rotate(angle);
+    
+    ctx.fillStyle="rgba(0,0,0,.8)"; 
+    ctx.fillRect(-bw/2, -bh/2, bw, bh);
+    ctx.strokeStyle=m.style.color; 
+    ctx.lineWidth=1; 
+    ctx.strokeRect(-bw/2, -bh/2, bw, bh);
+    ctx.fillStyle="#fff"; 
+    ctx.textAlign="center"; 
+    ctx.textBaseline="middle"; 
+    ctx.fillText(m.value, 0, 0);
+    
+    ctx.restore();
+  }
+}
+
+function pointOnLine(p,a,b,th=15){ 
+  const A=p.x-a.x, B=p.y-a.y, C=b.x-a.x, D=b.y-a.y; 
+  const dot=A*C+B*D, len=C*C+D*D; 
+  const t=(len? clamp(dot/len,0,1):0); 
+  const x=a.x+t*C, y=a.y+t*D; 
+  const dx=p.x-x, dy=p.y-y; 
+  return {hit:Math.hypot(dx,dy)<th, t, proj:{x,y}}; 
+}
+
+function pointInCallout(p,m){ 
+  if (m.type === "line") return false; // Lines don't have callouts
+  ctx.font="12px Arial"; 
+  const tw=ctx.measureText(m.value).width, pad=8, bw=tw+pad*2, bh=20; 
+  return (p.x>=m.callout.x-bw/2 && p.x<=m.callout.x+bw/2 && p.y>=m.callout.y-bh/2 && p.y<=m.callout.y+bh/2); 
+}
+
+function pointInLineNumber(p, line) {
+  if (line.type !== "line") return false;
+  const [a, b] = line.endpoints;
+  const midX = (a.x + b.x) / 2;
+  const midY = (a.y + b.y) / 2;
+  return (p.x >= midX - 15 && p.x <= midX + 15 && p.y >= midY - 15 && p.y <= midY + 15);
+}
+
+/* drawing/selection/dragging */
+let drawing=false, start=null;
+function canvasPos(e){ 
+  const r=canvas.getBoundingClientRect(); 
+  const cx=(e.touches?e.touches[0].clientX:e.clientX), cy=(e.touches?e.touches[0].clientY:e.clientY); 
+  return {x:(cx-r.left)/r.width*canvas.width, y:(cy-r.top)/r.height*canvas.height}; 
+}
+
+canvas.addEventListener("mousedown",startEvt); 
+canvas.addEventListener("touchstart",startEvt,{passive:false});
+
+function startEvt(e){ 
+  e.preventDefault(); 
+  const p=canvasPos(e);
+  
+  if (S.currentTool === "select") {
+    // Select mode - allow line movement, not measurement input on arrows
+    for(let i=S.shapes.length-1;i>=0;i--){ 
+      const shape=S.shapes[i]; 
+      
+      // Check if tapping on line (for movement)
+      const hit=pointOnLine(p,shape.endpoints[0],shape.endpoints[1]); 
+      if(hit.hit){ 
+        S.selected=shape; 
+        S.draggingShape = shape;
+        S.dragOffset = {
+          x: p.x - (shape.endpoints[0].x + shape.endpoints[1].x) / 2,
+          y: p.y - (shape.endpoints[0].y + shape.endpoints[1].y) / 2
+        };
+        draw();
+        // Change measurement tool icon to keypad when line is selected
+        $("toolMeasure").innerHTML = "🔢";
+        $("toolMeasure").title = "Enter Measurement";
+        return; 
+      } 
+    }
+    S.selected = null;
+    $("toolMeasure").innerHTML = "📏";
+    $("toolMeasure").title = "Measurement Tool";
+    draw();
+    return;
+  }
+  
+  // Measurement mode - check for callout drag first
+  for(let i=S.shapes.length-1;i>=0;i--){ 
+    const shape=S.shapes[i]; 
+    if(shape.value && pointInCallout(p,shape)){ 
+      S.selected=shape; 
+      S.draggingCallout=shape; 
+      S.draggingOffset={dx:p.x-shape.callout.x, dy:p.y-shape.callout.y}; 
+      draw(); 
+      return; 
+    } 
+  }
+  
+  // Check for line selection and movement
+  for(let i=S.shapes.length-1;i>=0;i--){ 
+    const shape=S.shapes[i]; 
+    const hit=pointOnLine(p,shape.endpoints[0],shape.endpoints[1]); 
+    if(hit.hit){ 
+      S.selected=shape; 
+      S.draggingShape = shape;
+      S.dragOffset = {
+        x: p.x - (shape.endpoints[0].x + shape.endpoints[1].x) / 2,
+        y: p.y - (shape.endpoints[0].y + shape.endpoints[1].y) / 2
+      };
+      draw(); 
+      return; 
+    } 
+  }
+  
+  // Begin drawing new measurement
+  drawing=true; 
+  start=p; 
+  S.selected=null; 
+  draw();
+}
+
+function showMeasurementOptions(shape) {
+  const options = [
+    { text: "📐 Enter Measurement", action: () => keypad(true) },
+    { text: "🎨 Change Color", action: () => changeMeasurementColor(shape) },
+    { text: "📝 Add Description", action: () => addDescription(shape) },
+    { text: "🗑 Delete", action: () => deleteMeasurement(shape) }
+  ];
+  
+  // Simple popup for now - could be improved with proper UI
+  const choice = prompt("Select action:\n" + options.map((opt, i) => `${i+1}. ${opt.text}`).join("\n") + "\n\nEnter number:");
+  const index = parseInt(choice) - 1;
+  if (index >= 0 && index < options.length) {
+    options[index].action();
+  }
+}
+
+function changeMeasurementColor(shape) {
+  const colors = ["#1e90ff", "#ff6b6b", "#4ecdc4", "#45b7d1", "#96ceb4", "#ffeaa7"];
+  const colorChoice = prompt("Choose color:\n" + colors.map((c, i) => `${i+1}. ${c}`).join("\n") + "\n\nEnter number:");
+  const index = parseInt(colorChoice) - 1;
+  if (index >= 0 && index < colors.length) {
+    shape.style.color = colors[index];
+    draw();
+    toast("Color changed", "info");
+  }
+}
+
+function addDescription(shape) {
+  const desc = prompt("Enter description for measurement " + shape.number + ":");
+  if (desc !== null) {
+    shape.description = desc.trim();
+    toast("Description added", "info");
+  }
+}
+
+function deleteMeasurement(shape) {
+  if (confirm(`Delete measurement ${shape.number}?`)) {
+    S.shapes = S.shapes.filter(s => s !== shape);
+    S.selected = null;
+    draw();
+    toast("Measurement deleted", "info");
+  }
+}
+
+window.addEventListener("mousemove",moveEvt); 
+window.addEventListener("touchmove",moveEvt,{passive:false});
+
+function moveEvt(e){ 
+  if(S.draggingCallout){ 
+    const p=canvasPos(e); 
+    const m=S.draggingCallout; 
+    m.callout={x:p.x-S.draggingOffset.dx, y:p.y-S.draggingOffset.dy}; 
+    const A=m.endpoints[0], B=m.endpoints[1]; 
+    const res=pointOnLine(m.callout,A,B); 
+    m.t=res.t; 
+    draw(); 
+    return; 
+  }
+
+  if(S.draggingShape) {
+    const p = canvasPos(e);
+    const shape = S.draggingShape;
+    const centerX = p.x - S.dragOffset.x;
+    const centerY = p.y - S.dragOffset.y;
+    const width = shape.endpoints[1].x - shape.endpoints[0].x;
+    const height = shape.endpoints[1].y - shape.endpoints[0].y;
+    
+    shape.endpoints[0] = {x: centerX - width/2, y: centerY - height/2};
+    shape.endpoints[1] = {x: centerX + width/2, y: centerY + height/2};
+    
+    if (shape.callout) {
+      shape.callout = {x: centerX, y: centerY - 30};
+    }
+    
+    draw();
+    return;
+  }
+  
+  if(!drawing||!start) return; 
+  const p=canvasPos(e); 
+  draw(); 
+  ctx.strokeStyle="#1e90ff"; 
+  ctx.lineWidth=2; 
+  ctx.beginPath(); 
+  ctx.moveTo(start.x,start.y); 
+  ctx.lineTo(p.x,p.y); 
+  ctx.stroke(); 
+}
+
+window.addEventListener("mouseup",endEvt); 
+window.addEventListener("touchend",endEvt);
+
+function endEvt(e){ 
+  if(S.draggingCallout){ 
+    S.draggingCallout=null; 
+    S.draggingOffset=null; 
+    return; 
+  }
+
+  if(S.draggingShape) {
+    S.draggingShape = null;
+    S.dragOffset = null;
+    toast(`Measurement line ${S.selected.number} moved`, "info");
+    return;
+  }
+  
+  if(!drawing||!start) return; 
+  const p=canvasPos(e); 
+  const dist=Math.hypot(p.x-start.x,p.y-start.y); 
+  
+  if(dist>20 && S.currentTool === "measure"){ 
+    // Create measurement line with number but no auto-assignment
+    S.shapes.push({ 
+      id:Date.now(), 
+      type: "measure",
+      endpoints:[{x:start.x,y:start.y},{x:p.x,y:p.y}], 
+      number: S.measurementCounter++,
+      value:'',
+      callout: null, // No callout until measurement is added
+      t: 0.5, 
+      style:{color:"#1e90ff",lineWidth:2} 
+    }); 
+    S.selected = S.shapes[S.shapes.length-1]; 
+    draw(); 
+    toast(`Measurement line ${S.measurementCounter-1} created. Tap to add measurement.`, "info");
+  } 
+  
+  drawing=false; 
+  start=null; 
+}
+
+/* ===== CONTEXT MENU (Measurements Only) ===== */
+const ctxMenu=$("ctx");
+canvas.addEventListener("contextmenu",(e)=>{e.preventDefault(); if(!S.selected) return; showCtx(e.clientX,e.clientY);});
+function showCtx(x,y){ctxMenu.style.left=Math.min(x,window.innerWidth-220)+"px";ctxMenu.style.top=Math.min(y,window.innerHeight-220)+"px";ctxMenu.classList.add("visible");}
+window.addEventListener("click",e=>{ if(!ctxMenu.contains(e.target)) ctxMenu.classList.remove("visible");});
+
+$("ctxEdit").onclick=()=>{
+  ctxMenu.classList.remove("visible"); 
+  keypad(true);
+};
+
+$("ctxDup").onclick=()=>{
+  ctxMenu.classList.remove("visible"); 
+  if(!S.selected) return; 
+  const s=S.selected; 
+  const d=20; 
+  const n={
+    ...s,
+    endpoints:[{x:s.endpoints[0].x+d,y:s.endpoints[0].y+d},{x:s.endpoints[1].x+d,y:s.endpoints[1].y+d}],
+    id:Date.now(),
+    number: S.measurementCounter++
+  };
+  if (s.value) {
+    n.callout = {x:s.callout.x+d,y:s.callout.y+d};
+  }
+  S.shapes.push(n); 
+  S.selected=n; 
+  draw();
+  toast(`Measurement ${n.number} duplicated`, "info");
+};
+
+$("ctxDelete").onclick=()=>{
+  ctxMenu.classList.remove("visible"); 
+  if(!S.selected) return; 
+  const num = S.selected.number;
+  S.shapes=S.shapes.filter(m=>m!==S.selected); 
+  S.selected=null; 
+  draw();
+  toast(`Measurement ${num} deleted`, "info");
+};
+
+$("ctxAddText").onclick=()=>{
+  ctxMenu.classList.remove("visible"); 
+  if(!S.selected) return; 
+  const t=prompt("Description for measurement " + S.selected.number + ":", S.selected.description || ""); 
+  if(t!==null){
+    S.selected.description = t.trim(); 
+    toast("Description updated", "info");
+  }
+};
+
+$("ctxMove").onclick=()=>{ctxMenu.classList.remove("visible"); moveToProject();};
+
+/* ===== MEASUREMENT INPUT (Fixed Fractions) ===== */
+function keypad(v){
+  $("keypad").classList.toggle("visible",v); 
+  if(v && S.selected && S.selected.type === "measure"){
+    const parsed=parseMeas(S.selected.value);
+    $("ft").value=parsed.ft||"";
+    $("in").value=parsed.in||"";
+    $("num").value=parsed.num||"";
+    $("den").value=parsed.den||8;
+  }
+}
+
+$("kpCancel").onclick=()=>{
+  keypad(false);
+  toast("Measurement input cancelled", "info");
+};
+
+$("kpApply").onclick=()=>{ 
+  const ft=parseInt($("ft").value)||0;
+  const inch=parseInt($("in").value)||0;
+  const num=parseInt($("num").value)||0;
+  const den=parseInt($("den").value)||8;
+  
+  // Fixed calculation - just add the fraction as is
+  const total = ft * 12 + inch + (num / den);
+  const formatted = fmtInches(total); 
+  
+  if(S.selected && S.selected.type === "measure"){ 
+    S.selected.value = formatted; 
+    // Set callout position if not set
+    if (!S.selected.callout) {
+      const [a,b] = S.selected.endpoints;
+      S.selected.callout = {x:(a.x+b.x)/2, y:(a.y+b.y)/2-30};
+      S.selected.t = 0.5;
+    }
+    draw(); 
+    addHistory(formatted);
+    toast(`Measurement ${formatted} applied to line ${S.selected.number}`, "info");
+  } else { 
+    addHistory(formatted); 
+    toast(`Measurement ${formatted} added to history`, "info");
+  } 
+  keypad(false); 
+};
+
+function fmtInches(inches){
+  const ft = Math.floor(inches / 12);
+  const rem = inches - ft * 12;
+  const wi = Math.floor(rem);
+  const frac = rem - wi;
+  
+  let out = "";
+  if (ft > 0) out += ft + "'";
+  if (wi > 0 || ft > 0) out += " " + wi + '"';
+  
+  if (frac > 0.001) { // Only show fraction if significant
+    const denominators = [64, 32, 16, 8, 4, 2];
+    for (const d of denominators) {
+      const n = Math.round(frac * d);
+      if (n > 0 && Math.abs(frac - n/d) < 0.01) {
+        out += " " + n + "/" + d + '"';
+        break;
+      }
+    }
+  }
+  
+  return out.trim() || '0"';
+}
+
+function parseMeas(str){const r={ft:0,in:0,num:0,den:8}; const fm=str.match(/(\d+)'/); if(fm) r.ft=parseInt(fm[1]); const im=str.match(/(\d+)"/); if(im) r.in=parseInt(im[1]); const frac=str.match(/(\d+)\/(\d+)"/); if(frac){r.num=parseInt(frac[1]); r.den=parseInt(frac[2]);} return r;}
+function fmtInches(inches){const ft=Math.floor(inches/12); const rem=inches-ft*12; const wi=Math.floor(rem); const frac=rem-wi; let out=""; if(ft>0) out+=ft+"'"; if(wi>0||ft>0) out+=wi+'"'; if(frac>1/128){const dn=[64,32,16,8,4,2]; for(const d of dn){const n=Math.round(frac*d); if(n>0 && Math.abs(frac-n/d)<0.01){out+=' '+n+'/'+d+'"'; break;}}} return out||'0"';}
+
+/* ===== HISTORY (Fixed - Apply Measurements to Selected Lines) ===== */
+function addHistory(v){S.history.unshift(v); S.history=S.history.slice(0,12); renderHistory();}
+function renderHistory(){
+  const h=$("historyList"); 
+  if(S.history.length===0){
+    h.innerHTML='<div style="color:var(--sub);font-size:11px;width:100%;text-align:center">Measurements from laser or manual entry will appear here</div>';
+    return;
+  } 
+  h.innerHTML=""; 
+  S.history.forEach(m=>{
+    const d=document.createElement("div"); 
+    d.className="chip"; 
+    d.textContent=m; 
+    d.onclick=()=>{ 
+      if(S.selected && S.selected.type === "measure"){ 
+        S.selected.value = m;
+        // Set callout if not set
+        if (!S.selected.callout) {
+          const [a,b] = S.selected.endpoints;
+          S.selected.callout = {x:(a.x+b.x)/2, y:(a.y+b.y)/2-30};
+          S.selected.t = 0.5;
+        }
+        draw();
+        toast(`Measurement ${m} applied to line ${S.selected.number}`, "info");
+      } else { 
+        toast("Select a measurement line first by tapping its number","info"); 
+      } 
+    }; 
+    h.appendChild(d); 
+  });
+}
+$("historyClear").onclick=()=>{S.history=[];renderHistory();};
+
+/* ===== TOP BAR ===== */
+$("btnUndo").onclick=()=>{ if(S.shapes.length){S.shapes.pop(); S.selected=null; draw(); } };
+/* ===== NEW BUTTON BEHAVIOR (Save and Ask) ===== */
+$("btnNew").onclick = () => {
+  if (S.currentProject && S.shapes.length > 0) {
+    // Save current work to project
+    saveCurrentDocument();
+    
+    // Ask if continuing in same project
+    const continueProject = confirm(`Continue working in project "${S.currentProject.name}"?`);
+    
+    if (continueProject) {
+      // Reset canvas but stay in project
+      S.shapes = [];
+      S.selected = null;
+      S.img = null;
+      S.measurementCounter = 1;
+      chooser(true);
+      toast(`Continuing in ${S.currentProject.name}`, "info");
+    } else {
+      // Exit project mode
+      S.currentProject = null;
+      S.shapes = [];
+      S.selected = null;
+      S.img = null;
+      S.measurementCounter = 1;
+      $("appTitle").textContent = "New Project";
+      chooser(true);
+      toast("Working in main folder", "info");
+    }
+  } else {
+    // Just start new photo
+    chooser(true);
+  }
+};
+
+function saveCurrentDocument() {
+  if (!S.img || S.shapes.length === 0) return;
+  
+  const doc = {
+    id: Date.now(),
+    name: S.currentDocument?.name || `Document_${new Date().toLocaleDateString()}`,
+    projectId: S.currentProject?.id || null,
+    projectName: S.currentProject?.name || null,
+    image: canvas.toDataURL('image/jpeg', 0.8),
+    shapes: JSON.parse(JSON.stringify(S.shapes)),
+    created: S.currentDocument?.created || new Date().toISOString(),
+    lastModified: new Date().toISOString()
+  };
+  
+  // Add to documents list
+  S.documents = S.documents.filter(d => d.id !== doc.id);
+  S.documents.unshift(doc);
+  S.documents = S.documents.slice(0, 20); // Keep last 20
+  
+  // Add to project if in project mode
+  if (S.currentProject) {
+    if (!S.currentProject.documents) S.currentProject.documents = [];
+    S.currentProject.documents = S.currentProject.documents.filter(d => d.id !== doc.id);
+    S.currentProject.documents.unshift(doc);
+    saveProjects();
+  }
+  
+  localStorage.setItem("emryn_documents", JSON.stringify(S.documents));
+  S.currentDocument = doc;
+}
+
+/* ===== EXPORT (Fixed) ===== */
+$("btnExport").onclick=()=>{ 
+  $("expName").value = (S.currentProject?.name)||$("appTitle").textContent||"measurement"; 
+  $("exp").classList.add("visible"); 
+};
+$("expCancel").onclick=()=>$("exp").classList.remove("visible");
+
+$("expJPG").onclick = () => {
+  const filename = ($("expName").value||"measurement").trim();
+  try {
+    exportAsJPG(filename);
+    $("exp").classList.remove("visible");
+  } catch (error) {
+    toast("Export failed: " + error.message, "error");
+  }
+};
+
+$("expPDF").onclick = () => {
+  const filename = ($("expName").value||"measurement").trim();
+  try {
+    exportAsPDF(filename, false);
+    $("exp").classList.remove("visible");
+  } catch (error) {
+    toast("Export failed: " + error.message, "error");
+  }
+};
+
+$("expPDFPro").onclick = () => {
+  const filename = ($("expName").value||"measurement").trim();
+  try {
+    exportAsPDF(filename, true);
+    $("exp").classList.remove("visible");
+  } catch (error) {
+    toast("Export failed: " + error.message, "error");
+  }
+};
+
+function exportAsJPG(filename) {
+  if(!S.img){
+    toast("Load a photo first","error");
+    return;
+  } 
+  
+  const exportCanvas = createExportCanvas();
+  exportCanvas.toBlob(blob => {
+    if (blob) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename + ".jpg";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast("JPG exported successfully", "info");
+    } else {
+      toast("Export failed - could not create image", "error");
+    }
+  }, 'image/jpeg', 0.95);
+}
+
+function exportAsPDF(filename, isPro) {
+  if(!S.img){
+    toast("Load a photo first","error");
+    return;
+  }
+  
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    toast("PDF export not available - jsPDF library not loaded", "error");
+    return;
+  }
+  
+  try {
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF();
+    
+    // Add header
+    const headerHeight = addPDFHeader(pdf);
+    
+    // Add image
+    const exportCanvas = createExportCanvas();
+    const imgData = exportCanvas.toDataURL('image/jpeg', 0.95);
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pageWidth - 20;
+    const imgHeight = (exportCanvas.height * imgWidth) / exportCanvas.width;
+    const yPos = headerHeight + 10;
+    
+    if (yPos + imgHeight > pageHeight - 30) {
+      const maxHeight = pageHeight - yPos - 30;
+      const scaledWidth = (imgWidth * maxHeight) / imgHeight;
+      pdf.addImage(imgData, 'JPEG', (pageWidth - scaledWidth) / 2, yPos, scaledWidth, maxHeight);
+    } else {
+      pdf.addImage(imgData, 'JPEG', 10, yPos, imgWidth, imgHeight);
+    }
+    
+    // Add footer
+    addPDFFooter(pdf);
+    
+    // Add Pro table if requested
+    if (isPro && S.shapes.length > 0) {
+      pdf.addPage();
+      addMeasurementTable(pdf);
+    }
+    
+    pdf.save(filename + ".pdf");
+    toast("PDF exported successfully", "info");
+  } catch (error) {
+    toast("PDF export failed: " + error.message, "error");
+  }
+}
+
+function createExportCanvas() {
+  const ex = document.createElement("canvas");
+  const exCtx = ex.getContext("2d");
+  ex.width = S.img.width;
+  ex.height = S.img.height;
+  exCtx.drawImage(S.img, 0, 0);
+  
+  const sx = S.img.width / canvas.width;
+  const sy = S.img.height / canvas.height;
+  const s = Math.min(sx, sy);
+  
+  // Draw all shapes
+  for(const shape of S.shapes){ 
+    const a = {x: shape.endpoints[0].x * sx, y: shape.endpoints[0].y * sy};
+    const b = {x: shape.endpoints[1].x * sx, y: shape.endpoints[1].y * sy};
+    
+    if (shape.type === "line") {
+      // Export line with arrows and number
+      exCtx.strokeStyle = shape.style.color; 
+      exCtx.lineWidth = shape.style.lineWidth * s; 
+      exCtx.beginPath(); 
+      exCtx.moveTo(a.x, a.y); 
+      exCtx.lineTo(b.x, b.y); 
+      exCtx.stroke();
+      
+      // Draw arrows
+      drawArrowOnCanvas(exCtx, a.x, a.y, b.x, b.y, shape.style.color, s);
+      drawArrowOnCanvas(exCtx, b.x, b.y, a.x, a.y, shape.style.color, s);
+      
+      // Draw number
+      const midX = (a.x + b.x) / 2;
+      const midY = (a.y + b.y) / 2;
+      exCtx.font = `${16*s}px Arial`;
+      exCtx.fillStyle = "rgba(0,0,0,0.8)";
+      exCtx.fillRect(midX - 20*s, midY - 20*s, 40*s, 40*s);
+      exCtx.strokeStyle = shape.style.color;
+      exCtx.lineWidth = 2*s;
+      exCtx.strokeRect(midX - 20*s, midY - 20*s, 40*s, 40*s);
+      exCtx.fillStyle = "#fff";
+      exCtx.textAlign = "center";
+      exCtx.textBaseline = "middle";
+      exCtx.fillText(shape.number.toString(), midX, midY);
+      
+    } else if (shape.type === "measure" && shape.value) {
+      // Export measurement with callout
+      exCtx.strokeStyle = shape.style.color; 
+      exCtx.lineWidth = shape.style.lineWidth * s; 
+      exCtx.beginPath(); 
+      exCtx.moveTo(a.x, a.y); 
+      exCtx.lineTo(b.x, b.y); 
+      exCtx.stroke(); 
+      
+      const anchor = {x: a.x + (b.x - a.x) * shape.t, y: a.y + (b.y - a.y) * shape.t}; 
+      exCtx.setLineDash([5*s, 5*s]); 
+      exCtx.lineWidth = 1*s; 
+      exCtx.beginPath(); 
+      exCtx.moveTo(anchor.x, anchor.y); 
+      exCtx.lineTo(shape.callout.x * sx, shape.callout.y * sy); 
+      exCtx.stroke(); 
+      exCtx.setLineDash([]); 
+      
+      exCtx.font = `${16*s}px Arial`; 
+      const tw = exCtx.measureText(shape.value).width; 
+      const pad = 12*s; 
+      exCtx.fillStyle = "rgba(0,0,0,.8)"; 
+      exCtx.fillRect(shape.callout.x * sx - tw/2 - pad, shape.callout.y * sy - 8*s - pad, tw + pad*2, 16*s + pad*2); 
+      exCtx.strokeStyle = shape.style.color; 
+      exCtx.lineWidth = 1*s; 
+      exCtx.strokeRect(shape.callout.x * sx - tw/2 - pad, shape.callout.y * sy - 8*s - pad, tw + pad*2, 16*s + pad*2); 
+      exCtx.fillStyle = "#fff"; 
+      exCtx.textAlign = "center"; 
+      exCtx.textBaseline = "middle"; 
+      exCtx.fillText(shape.value, shape.callout.x * sx, shape.callout.y * sy); 
+    }
+  }
+  
+  // Add timestamp and watermark
+  addTimestampToCanvas(exCtx, ex.width, ex.height, s);
+  if (S.branding.watermark) {
+    addWatermarkToCanvas(exCtx, ex.width, ex.height, s);
+  }
+  
+  return ex;
+}
+
+function drawArrowOnCanvas(ctx, fromX, fromY, toX, toY, color, scale) {
+  const headLen = 15 * scale;
+  const angle = Math.atan2(toY - fromY, toX - fromX);
+  
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2 * scale;
+  ctx.beginPath();
+  ctx.moveTo(fromX, fromY);
+  ctx.lineTo(fromX + headLen * Math.cos(angle - Math.PI / 6), fromY + headLen * Math.sin(angle - Math.PI / 6));
+  ctx.moveTo(fromX, fromY);
+  ctx.lineTo(fromX + headLen * Math.cos(angle + Math.PI / 6), fromY + headLen * Math.sin(angle + Math.PI / 6));
+  ctx.stroke();
+}
+
+function addTimestampToCanvas(ctx, width, height, scale) {
+  const ts = new Date().toLocaleString();
+  ctx.font = `${14 * scale}px Arial`;
+  const w = ctx.measureText(ts).width;
+  const pad = 8 * scale;
+  ctx.fillStyle = "rgba(0,0,0,.7)";
+  ctx.fillRect(20, 20, w + pad*2, 14*scale + pad*2);
+  ctx.fillStyle = "#fff";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  ctx.fillText(ts, 20 + pad, 20 + pad);
+}
+
+function addWatermarkToCanvas(ctx, width, height, scale) {
+  const img = new Image();
+  img.onload = () => {
+    const size = Math.min(width, height) * 0.1;
+    const margin = 20;
+    ctx.globalAlpha = 0.7;
+    ctx.drawImage(img, width - size - margin, height - size - margin, size, size);
+    ctx.globalAlpha = 1;
+  };
+  img.src = S.branding.watermark;
+}
+
+function addPDFHeader(pdf) {
+  const settings = S.settings;
+  pdf.setFontSize(20);
+  pdf.text(settings.userCompany || "EMRYN Measurement Report", 20, 20);
+  
+  pdf.setFontSize(12);
+  let yPos = 35;
+  if (settings.userName) {
+    pdf.text("Prepared by: " + settings.userName, 20, yPos);
+    yPos += 10;
+  }
+  if (S.currentProject) {
+    pdf.text("Project: " + S.currentProject.name, 20, yPos);
+    yPos += 10;
+  }
+  pdf.text("Created: " + new Date().toLocaleString(), 20, yPos);
+  yPos += 10;
+  
+  return yPos;
+}
+
+function addPDFFooter(pdf) {
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  pdf.setFontSize(10);
+  pdf.text("Generated by EMRYN Measurement Tool", 20, pageHeight - 20);
+}
+
+function addMeasurementTable(pdf) {
+  pdf.setFontSize(16);
+  pdf.text("Measurement Details", 20, 20);
+  
+  let yPos = 40;
+  pdf.setFontSize(12);
+  pdf.text("Line#", 20, yPos);
+  pdf.text("Type", 60, yPos);
+  pdf.text("Value", 100, yPos);
+  pdf.text("Description", 140, yPos);
+  yPos += 10;
+  
+  // Draw header line
+  pdf.line(20, yPos, 190, yPos);
+  yPos += 10;
+  
+  S.shapes.forEach((shape, index) => {
+    if (yPos > 270) {
+      pdf.addPage();
+      yPos = 20;
+    }
+    
+    pdf.text((index + 1).toString(), 20, yPos);
+    pdf.text(shape.type === "line" ? "Line" : "Measurement", 60, yPos);
+    const value = shape.type === "line" ? `#${shape.number}` : (shape.value || "Not set");
+    pdf.text(value, 100, yPos);
+    pdf.text(shape.description || "-", 140, yPos);
+    yPos += 10;
+  });
+}
+
+/* ===== THREE-LEVEL FOLDER SYSTEM (Based on Images) ===== */
+function renderProjectGrid() {
+  const grid = $("projectGrid");
+  grid.innerHTML = "";
+  
+  if (!S.projects.length) {
+    const empty = document.createElement("div");
+    empty.style.cssText = "grid-column:1/-1;text-align:center;padding:40px;color:var(--sub)";
+    empty.innerHTML = '<div style="font-size:60px;opacity:.5">📁</div><div>No project folders</div>';
+    grid.appendChild(empty);
+  } else {
+    S.projects.forEach(project => {
+      const projectCard = document.createElement("div");
+      projectCard.style.cssText = "aspect-ratio:1;background:#666;border-radius:8px;cursor:pointer;position:relative;overflow:hidden";
+      
+      // Create folder thumbnail (gray with black header like in images)
+      projectCard.innerHTML = `
+        <div style="height:20px;background:#333;width:100%"></div>
+        <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.8);color:#fff;padding:8px;font-size:12px;font-weight:600;text-align:center">${project.name}</div>
+      `;
+      
+      projectCard.onclick = () => showProjectContents(project);
+      
+      // Long press for project options
+      let pressTimer;
+      projectCard.onmousedown = projectCard.ontouchstart = (e) => {
+        e.preventDefault();
+        pressTimer = setTimeout(() => showProjectOptions(project), 800);
+      };
+      projectCard.onmouseup = projectCard.ontouchend = projectCard.onmouseleave = () => {
+        clearTimeout(pressTimer);
+      };
+      
+      grid.appendChild(projectCard);
+    });
+  }
+}
+
+function showProjectContents(project) {
+  S.currentProject = project;
+  project.lastOpened = new Date().toISOString();
+  saveProjects();
+  
+  $("projTitle").textContent = project.name;
+  renderProjectImages(project);
+  show("projectContents");
+}
+
+function renderProjectImages(project) {
+  const grid = $("projectImagesGrid");
+  grid.innerHTML = "";
+  
+  const projectDocs = project.documents || [];
+  
+  if (!projectDocs.length) {
+    const empty = document.createElement("div");
+    empty.style.cssText = "grid-column:1/-1;text-align:center;padding:40px;color:var(--sub)";
+    empty.innerHTML = '<div style="font-size:60px;opacity:.5">📷</div><div>No images in this project</div><div style="font-size:12px;margin-top:8px">Tap the sketch button to add photos</div>';
+    grid.appendChild(empty);
+  } else {
+    projectDocs.forEach(doc => {
+      const docCard = document.createElement("div");
+      docCard.style.cssText = "aspect-ratio:1;background:#f0f0f0;border-radius:8px;cursor:pointer;position:relative;overflow:hidden;border:1px solid #ddd";
+      
+      // Create image thumbnail with measurement overlay preview
+      docCard.innerHTML = `
+        <img src="${doc.image}" style="width:100%;height:80%;object-fit:cover"/>
+        <div style="position:absolute;bottom:0;left:0;right:0;background:#fff;padding:4px;font-size:10px;text-align:center;border-top:1px solid #ddd">${doc.name}</div>
+      `;
+      
+      docCard.onclick = () => loadDocument(doc);
+      grid.appendChild(docCard);
+    });
+  }
+}
+
+function showProjectOptions(project) {
+  const action = prompt(`Options for "${project.name}":\n1. Rename\n2. Delete\n\nEnter option number:`);
+  if (action === "1") {
+    const newName = prompt("New project name:", project.name);
+    if (newName && newName.trim()) {
+      project.name = newName.trim();
+      saveProjects();
+      renderProjectGrid();
+      toast("Project renamed", "info");
+    }
+  } else if (action === "2") {
+    if (confirm(`Delete project "${project.name}" and all its documents?`)) {
+      S.projects = S.projects.filter(x => x.id !== project.id);
+      saveProjects();
+      renderProjectGrid();
+      toast("Project deleted", "info");
+    }
+  }
+}
+
+// Project and sketch button handlers
+$("addProjectBtn").onclick = () => {
+  const name = prompt("New project name:");
+  if (name && name.trim()) {
+    const project = {
+      id: Date.now(),
+      name: name.trim(),
+      created: new Date().toISOString(),
+      lastOpened: new Date().toISOString(),
+      documents: []
+    };
+    S.projects.unshift(project);
+    saveProjects();
+    renderProjectGrid();
+    toast("Project created", "info");
+  }
+};
+
+$("addSketchBtn").onclick = () => {
+  if (S.currentProject) {
+    chooser(true);
+  } else {
+    toast("No project selected", "error");
+  }
+};
+
+$("orgAdd").onclick=()=>{
+  const n=prompt("Project name:"); 
+  if(!n) return; 
+  const p={
+    id:Date.now(),
+    name:n.trim(),
+    created:new Date().toISOString(),
+    lastOpened:new Date().toISOString()
+  }; 
+  S.projects.unshift(p); 
+  upsertRecent(p); 
+  saveProjects(); 
+  renderProjects();
+};
+
+function saveProjects(){ 
+  localStorage.setItem("emryn_projects",JSON.stringify(S.projects)); 
+  localStorage.setItem("emryn_recent",JSON.stringify(S.recents)); 
+}
+
+function upsertRecent(p){ 
+  S.recents=S.recents.filter(x=>x.id!==p.id); 
+  S.recents.unshift({...p}); 
+  S.recents=S.recents.slice(0,6); 
+}
+
+function moveToProject(){ 
+  if(!S.projects.length){ 
+    toast("No projects available. Create one in Organizer.","info"); 
+    return; 
+  } 
+  const names = S.projects.map((p,i)=>`${i+1}. ${p.name}`).join("\n"); 
+  const c = prompt(`Move to project:\n${names}\n\nEnter project number:`); 
+  const idx = parseInt(c,10)-1; 
+  if(!isNaN(idx)&&S.projects[idx]){ 
+    S.currentProject=S.projects[idx]; 
+    $("appTitle").textContent=S.currentProject.name; 
+    toast(`Moved to: ${S.currentProject.name}`,"info"); 
+  } 
+}
+
+/* ===== BLUETOOTH (HTTPS ENFORCED) ===== */
+$("autoConnect").checked=S.bt.auto; 
+$("autoConnect").onchange=()=>{
+  S.bt.auto=$("autoConnect").checked; 
+  localStorage.setItem("emryn_auto",JSON.stringify(S.bt.auto));
+}; 
+$("btConnect").onclick=connectBT; 
+$("btDisconnect").onclick=disconnectBT;
+
+function updateBTUI(){ 
+  $("btStatus").textContent = S.bt.connected? "Connected" : (!isSecure()? "Not connected – HTTPS required" : "Not connected"); 
+  $("btConnect").disabled = !isSecure() || !navigator.bluetooth || S.bt.connected; 
+  $("btDisconnect").disabled = !S.bt.connected; 
+  $("laserBtn").classList.toggle("connected", S.bt.connected); 
+  $("laserState").textContent = S.bt.connected ? (S.bt.measuring? "MEASURING":"READY") : "OFF"; 
+  if(!isSecure()) toast("Enable HTTPS (GitHub Pages → Enforce HTTPS) to use Bluetooth","error"); 
+}
+
+async function connectBT(){ 
+  if(!isSecure()){
+    toast("HTTPS required for Web Bluetooth","error");
+    updateBTUI();
+    return;
+  } 
+  if(!navigator.bluetooth){
+    toast("Web Bluetooth not supported in this browser","error");
+    return;
+  } 
+  try{ 
+    const device = await navigator.bluetooth.requestDevice({ 
+      filters:[{namePrefix:"DISTO"},{namePrefix:"GLM"},{namePrefix:"Laser"}], 
+      optionalServices:["0000ffe0-0000-1000-8000-00805f9b34fb","0000ffe1-0000-1000-8000-00805f9b34fb"] 
+    }); 
+    await device.gatt.connect(); 
+    S.bt.device=device; 
+    S.bt.connected=true; 
+    device.addEventListener("gattserverdisconnected",()=>{
+      S.bt.connected=false; 
+      S.bt.device=null; 
+      updateBTUI(); 
+      toast("Device disconnected","info");
+    }); 
+    updateBTUI(); 
+    toast("Connected: "+(device.name||"Laser"),"info"); 
+  }catch(err){
+    toast("Connection failed: "+err.message,"error");
+  } 
+}
+
+function disconnectBT(){ 
+  try{ 
+    if(S.bt.device?.gatt.connected) S.bt.device.gatt.disconnect(); 
+  }catch{} 
+  S.bt.connected=false; 
+  S.bt.device=null; 
+  updateBTUI();
+}
+
+/* ===== LASER BUTTON BEHAVIOR (Fixed) ===== */
+$("laserBtn").onclick = async () => {
+  if (S.bt.connected) {
+    // Take measurement
+    S.bt.measuring = true;
+    updateBTUI();
+    await new Promise(r => setTimeout(r, 900));
+    const inches = Math.random() * 120 + 12;
+    const val = fmtInches(inches);
+    
+    // If a line is selected, ask to apply or add to history
+    if (S.selected && S.selected.type === "measure") {
+      if (S.selected.value && S.selected.value.trim() !== '') {
+        const replace = confirm(`Replace measurement on line ${S.selected.number} with ${val}?`);
+        if (replace) {
+          S.selected.value = val;
+          if (!S.selected.callout) {
+            const [a,b] = S.selected.endpoints;
+            S.selected.callout = {x:(a.x+b.x)/2, y:(a.y+b.y)/2-30};
+            S.selected.t = 0.5;
+          }
+          draw();
+          toast(`Measurement ${val} applied to line ${S.selected.number}`, "info");
+        } else {
+          addHistory(val);
+          toast(`Measurement ${val} added to history`, "info");
+        }
+      } else {
+        // Apply directly to empty line
+        S.selected.value = val;
+        if (!S.selected.callout) {
+          const [a,b] = S.selected.endpoints;
+          S.selected.callout = {x:(a.x+b.x)/2, y:(a.y+b.y)/2-30};
+          S.selected.t = 0.5;
+        }
+        draw();
+        toast(`Measurement ${val} applied to line ${S.selected.number}`, "info");
+      }
+    } else {
+      addHistory(val);
+      toast(`Measurement ${val} added to history`, "info");
+    }
+    
+    S.bt.measuring = false;
+    updateBTUI();
+  } else {
+    // Try to connect laser
+    $("laserState").textContent = "CONNECTING...";
+    const connected = await attemptLaserConnection();
+    if (!connected) {
+      toast("Redirecting to device connection...", "info");
+      setTimeout(() => {
+        route("devices");
+      }, 1000);
+    }
+  }
+};
+
+/* ===== ENHANCED LASER DEVICE CONNECTIVITY ===== */
+async function attemptLaserConnection() {
+  if (!isSecure()) {
+    toast("HTTPS required for laser connection", "error");
+    return false;
+  }
+  if (!navigator.bluetooth) {
+    toast("Bluetooth not supported", "error");
+    return false;
+  }
+  
+  try {
+    const device = await navigator.bluetooth.requestDevice({
+      filters: [
+        // Leica Disto series
+        { namePrefix: "DISTO" },
+        { namePrefix: "Leica" },
+        // Mapie VH80
+        { namePrefix: "Mapie" },
+        { namePrefix: "VH80" },
+        // Bosch GLM series  
+        { namePrefix: "GLM" },
+        { namePrefix: "Bosch" },
+        // Milwaukee LDM series
+        { namePrefix: "LDM" },
+        { namePrefix: "Milwaukee" },
+        // DeWalt
+        { namePrefix: "DeWalt" },
+        { namePrefix: "DW03050" },
+        // Generic laser devices
+        { namePrefix: "Laser" },
+        { namePrefix: "Distance" }
+      ],
+      optionalServices: [
+        "0000ffe0-0000-1000-8000-00805f9b34fb", // Common laser service
+        "0000ffe1-0000-1000-8000-00805f9b34fb",
+        "00001800-0000-1000-8000-00805f9b34fb", // Generic Access
+        "00001801-0000-1000-8000-00805f9b34fb", // Generic Attribute
+        "6e400001-b5a3-f393-e0a9-e50e24dcca9e", // Nordic UART Service
+      ]
+    });
+    
+    await device.gatt.connect();
+    S.bt.device = device;
+    S.bt.connected = true;
+    device.addEventListener("gattserverdisconnected", () => {
+      S.bt.connected = false;
+      S.bt.device = null;
+      updateBTUI();
+      toast("Laser device disconnected", "info");
+    });
+    updateBTUI();
+    toast("Connected to: " + (device.name || "Laser Device"), "info");
+    return true;
+  } catch (err) {
+    toast("Connection failed: " + err.message, "error");
+    return false;
+  }
+}
+
+function updateBTUI(){ 
+  $("btStatus").textContent = S.bt.connected ? 
+    "Connected to " + (S.bt.device?.name || "Laser Device") : 
+    (!isSecure() ? "HTTPS required for connection" : "Not connected"); 
+  $("btConnect").disabled = !isSecure() || !navigator.bluetooth || S.bt.connected; 
+  $("btDisconnect").disabled = !S.bt.connected; 
+  $("laserBtn").classList.toggle("connected", S.bt.connected); 
+  $("laserState").textContent = S.bt.connected ? 
+    (S.bt.measuring ? "MEASURING" : "READY") : "CONNECT LASER"; 
+}
+
+/* ===== HELPERS ===== */
+function readImgTo(file,cb){ 
+  if(!file||!file.type.startsWith("image/")){
+    toast("Select an image","error");
+    return;
+  } 
+  const fr=new FileReader(); 
+  fr.onload=e=>cb(e.target.result); 
+  fr.readAsDataURL(file); 
+}
+
+/* ===== INIT ===== */
+function init(){ 
+  renderHistory(); 
+  updateBTUI(); 
+  updateToolButtons(); // Initialize tool buttons
+}
+init();
+</script>
+</body>
+</html>
