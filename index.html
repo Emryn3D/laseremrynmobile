@@ -1,0 +1,1963 @@
+  function setupEventListeners() {
+    // Home screen cards
+    document.getElementById('sketchOnPhotoCard').addEventListener('click', () => {
+      showImageCapture();
+    });
+
+    document.getElementById('homeMenuBtn').addEventListener('click', () => {
+      toggleSideMenu(true);
+    });
+
+    // Side menu
+    document.getElementById('sideMenuClose').addEventListener('click', () => {
+      toggleSideMenu(false);
+    });
+
+    document.getElementById('menuSketchPhoto').addEventListener('click', () => {
+      toggleSideMenu(false);
+      showImageCapture();
+    });
+
+    menuOverlay.addEventListener('click', () => {
+      toggleSideMenu(false);
+    });
+
+    // App interface
+    document.getElementById('emrynLogo').addEventListener('click', () => {
+      toggleSideMenu(true);
+    });
+
+    document.getElementById('backBtn').addEventListener('click', () => {
+      showScreen('home');
+    });
+
+    // Laser button - goes to bluetooth screen
+    document.getElementById('laserBtn').addEventListener('click', () => {
+      if (state.bluetooth.connected) {
+        takeMeasurement();
+      } else {
+        showScreen('bluetooth');
+      }
+    });
+
+    // Bluetooth screen
+    document.getElementById('bluetoothBack').addEventListener('click', () => {
+      showScreen('app');
+    });
+
+    document.getElementById('bluetoothConnectBtn').addEventListener('click', connectBluetooth);
+
+    // Tools
+    document.getElementById('drawToolBtn').addEventListener('click', () => setTool('draw'));
+    document.getElementById('selectToolBtn').addEventListener('click', () => setTool('select'));
+
+    // Undo
+    document.getElementById('undoBtn').addEventListener('click', undo);
+    document.getElementById('undoFloatBtn').addEventListener('click', undo);
+
+    // Context menu
+    document.getElementById('contextEdit').addEventListener('click', () => {
+      hideContextMenu();
+      // Could open edit panel here
+    });
+
+    document.getElementById('contextAddMeasure').addEventListener('click', () => {
+      hideContextMenu();
+      showMeasurementInput();
+    });
+
+    document.getElementById('contextDelete').addEventListener('click', () => {
+      hideContextMenu();
+      deleteSelected();
+    });
+
+    // Canvas interactions
+    setupCanvasEvents();
+
+    // Hide context menu when clicking elsewhere
+    document.addEventListener('click', (e) => {
+      if (!contextMenu.contains(e.target)) {
+        hideContextMenu();
+      }
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        undo();
+      }
+      if (e.key === 'Delete') {
+        deleteSelected();
+      }
+    });
+  }
+
+  function showScreen(screen) {
+    state.currentScreen = screen;
+    
+    homeScreen.classList.toggle('hidden', screen !== 'home');
+    appInterface.classList.toggle('hidden', screen !== 'app');
+    bluetoothScreen.classList.toggle('visible', screen === 'bluetooth');
+    
+    if (screen === 'app') {
+      setTimeout(() => {
+        initCanvas();
+        fitToScreen();
+      }, 100);
+    }
+  }
+
+  function toggleSideMenu(show) {
+    sideMenu.classList.toggle('open', show);
+    menuOverlay.classList.toggle('visible', show);
+  }
+
+  function showImageCapture() {
+    // Show native image picker
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.multiple = false;
+    
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        loadImageFile(file);
+      }
+    };
+    
+    // Also try camera if available
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      const choices = document.createElement('div');
+      choices.style.cssText = `
+        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        background: white; padding: 20px; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        z-index: 500; display: flex; flex-direction: column; gap: 15px; min-width: 200px;
+      `;
+      
+      const title = document.createElement('div');
+      title.textContent = 'Select picture';
+      title.style.cssText = 'font-weight: 600; color: #666; margin-bottom: 10px;';
+      
+      const cameraBtn = document.createElement('button');
+      cameraBtn.textContent = 'Camera';
+      cameraBtn.style.cssText = 'padding: 12px; border: none; background: #f0f0f0; border-radius: 8px; font-size: 16px; cursor: pointer;';
+      
+      const galleryBtn = document.createElement('button');
+      galleryBtn.textContent = 'Gallery';
+      galleryBtn.style.cssText = 'padding: 12px; border: none; background: #f0f0f0; border-radius: 8px; font-size: 16px; cursor: pointer;';
+      
+      const cancelBtn = document.createElement('button');
+      cancelBtn.textContent = 'Cancel';
+      cancelBtn.style.cssText = 'padding: 12px; border: none; background: #ff4444; color: white; border-radius: 8px; font-size: 16px; cursor: pointer; margin-top: 10px;';
+      
+      choices.appendChild(title);
+      choices.appendChild(cameraBtn);
+      choices.appendChild(galleryBtn);
+      choices.appendChild(cancelBtn);
+      document.body.appendChild(choices);
+      
+      cameraBtn.onclick = () => {
+        choices.remove();
+        openCamera();
+      };
+      
+      galleryBtn.onclick = () => {
+        choices.remove();
+        input.click();
+      };
+      
+      cancelBtn.onclick = () => {
+        choices.remove();
+      };
+    } else {
+      input.click();
+    }
+  }
+
+  async function openCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' }
+      });
+
+      const cameraOverlay = document.createElement('div');
+      cameraOverlay.style.cssText = `
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: black; z-index: 600;
+        display: flex; flex-direction: column;
+      `;
+
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      video.autoplay = true;
+      video.playsInline = true;
+      video.style.cssText = 'flex: 1; width: 100%; object-fit: cover;';
+
+      const controls = document.createElement('div');
+      controls.style.cssText = `
+        position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+        display: flex; gap: 20px; align-items: center;
+      `;
+
+      const captureBtn = document.createElement('button');
+      captureBtn.innerHTML = '📷';
+      captureBtn.style.cssText = `
+        width: 70px; height: 70px; border-radius: 50%; background: #004025; color: white;
+        border: 4px solid white; font-size: 24px; cursor: pointer;
+      `;
+
+      const closeBtn = document.createElement('button');
+      closeBtn.innerHTML = '✕';
+      closeBtn.style.cssText = `
+        width: 50px; height: 50px; border-radius: 50%; background: rgba(0,0,0,0.6); color: white;
+        border: none; font-size: 20px; cursor: pointer;
+      `;
+
+      controls.appendChild(closeBtn);
+      controls.appendChild(captureBtn);
+      cameraOverlay.appendChild(video);
+      cameraOverlay.appendChild(controls);
+      document.body.appendChild(cameraOverlay);
+
+      const cleanup = () => {
+        stream.getTracks().forEach(track => track.stop());
+        cameraOverlay.remove();
+      };
+
+      captureBtn.onclick = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 1920;
+        canvas.height = video.videoHeight || 1080;
+        
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0);
+        
+        canvas.toBlob((blob) => {
+          const file = new File([blob], 'camera-capture.jpg', { type: 'image/jpeg' });
+          loadImageFile(file);
+          cleanup();
+        }, 'image/jpeg', 0.9);
+      };
+
+      closeBtn.onclick = cleanup;
+
+    } catch (err) {
+      console.error('Camera access failed:', err);
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.capture = 'environment';
+      input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (file) loadImageFile(file);
+      };
+      input.click();
+    }
+  }
+
+  function loadImageFile(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        state.image = img;
+        state.imageNaturalSize = { w: img.naturalWidth, h: img.naturalHeight };
+        showScreen('app');
+        setTimeout(() => fitToScreen(), 100);
+      };
+      img.onerror = () => {
+        alert('Failed to load image. Please try a different format.');
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function setTool(tool) {
+    state.tool = tool;
+    document.getElementById('drawToolBtn').classList.toggle('active', tool === 'draw');
+    document.getElementById('selectToolBtn').classList.toggle('active', tool === 'select');
+  }
+
+  function setupCanvasEvents() {
+    let isDrawing = false;
+    let startPoint = null;
+    let lastTouch = 0;
+
+    drawCanvas.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      const point = getCanvasPoint(e);
+      const now = Date.now();
+
+      if (now - lastTouch < 300) {
+        fitToScreen();
+        return;
+      }
+      lastTouch = now;
+
+      if (state.tool === 'draw') {
+        isDrawing = true;
+        startPoint = point;
+        hideContextMenu();
+      } else if (state.tool === 'select') {
+        handleSelection(point, e);
+      }
+    });
+
+    drawCanvas.addEventListener('pointermove', (e) => {
+      if (!isDrawing && !state.dragging) return;
+      
+      e.preventDefault();
+      const point = getCanvasPoint(e);
+
+      if (isDrawing && startPoint) {
+        drawPreview(startPoint, point);
+      } else if (state.dragging) {
+        handleDrag(point);
+      }
+    });
+
+    drawCanvas.addEventListener('pointerup', (e) => {
+      if (isDrawing && startPoint) {
+        const point = getCanvasPoint(e);
+        addMeasurementLine(startPoint, point);
+        isDrawing = false;
+        startPoint = null;
+      }
+      state.dragging = null;
+    });
+
+    // Pinch zoom
+    let initialDistance = 0;
+    let initialZoom = 1;
+    
+    drawCanvas.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2) {
+        const touch1 = e.touches[0];
+        const touch2 = e.touches[1];
+        initialDistance = Math.hypot(
+          touch1.clientX - touch2.clientX,
+          touch1.clientY - touch2.clientY
+        );
+        initialZoom = state.zoom;
+      }
+    });
+
+    drawCanvas.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const touch1 = e.touches[0];
+        const touch2 = e.touches[1];
+        const currentDistance = Math.hypot(
+          touch1.clientX - touch2.clientX,
+          touch1.clientY - touch2.clientY
+        );
+
+        if (initialDistance > 0) {
+          const scale = currentDistance / initialDistance;
+          const newZoom = Math.max(0.5, Math.min(3, initialZoom * scale));
+          adjustZoom(newZoom / state.zoom);
+        }
+      }
+    });
+  }
+
+  function getCanvasPoint(e) {
+    const rect = drawCanvas.getBoundingClientRect();
+    const scaleX = drawCanvas.width / rect.width;
+    const scaleY = drawCanvas.height / rect.height;
+    
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY
+    };
+  }
+
+  function handleSelection(point, event) {
+    let hitShape = null;
+    let hitType = null;
+    
+    for (const shape of [...state.shapes].reverse()) {
+      if (distance(point, shape.p1) < 20) {
+        hitShape = shape;
+        hitType = 'p1';
+        break;
+      }
+      if (distance(point, shape.p2) < 20) {
+        hitShape = shape;
+        hitType = 'p2';
+        break;
+      }
+      
+      const lineDistance = distanceToLine(point, shape.p1, shape.p2);
+      if (lineDistance < Math.max(15, shape.width + 5)) {
+        hitShape = shape;
+        hitType = 'line';
+        break;
+      }
+    }
+
+    if (hitShape) {
+      state.selectedShape = hitShape.id;
+      if (hitType === 'line') {
+        // Show context menu for line
+        showContextMenu(event.clientX, event.clientY);
+      } else {
+        saveToHistory();
+        state.dragging = hitType;
+      }
+    } else {
+      state.selectedShape = null;
+      hideContextMenu();
+    }
+    
+    redraw();
+  }
+
+  function showContextMenu(x, y) {
+    contextMenu.style.left = Math.min(x, window.innerWidth - 160) + 'px';
+    contextMenu.style.top = Math.min(y, window.innerHeight - 120) + 'px';
+    contextMenu.classList.add('visible');
+    state.contextMenuVisible = true;
+  }
+
+  function hideContextMenu() {
+    contextMenu.classList.remove('visible');
+    state.contextMenuVisible = false;
+  }
+
+  function handleDrag(point) {
+    const shape = getSelectedShape();
+    if (!shape) return;
+
+    if (state.dragging === 'p1') {
+      shape.p1 = { ...point };
+    } else if (state.dragging === 'p2') {
+      shape.p2 = { ...point };
+    } else if (state.dragging === 'line') {
+      const center = {
+        x: (shape.p1.x + shape.p2.x) / 2,
+        y: (shape.p1.y + shape.p2.y) / 2
+      };
+      const dx = point.x - center.x;
+      const dy = point.y - center.y;
+      
+      shape.p1.x += dx;
+      shape.p1.y += dy;
+      shape.p2.x += dx;
+      shape.p2.y += dy;
+    }
+    
+    redraw();
+  }
+
+  function drawPreview(start, end) {
+    redraw();
+    drawCtx.save();
+    drawCtx.strokeStyle = state.activeColor;
+    drawCtx.lineWidth = state.lineWidth;
+    drawCtx.setLineDash([8, 4]);
+    drawCtx.beginPath();
+    drawCtx.moveTo(start.x, start.y);
+    drawCtx.lineTo(end.x, end.y);
+    drawCtx.stroke();
+    drawCtx.restore();
+  }
+
+  function addMeasurementLine(p1, p2) {
+    const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+    if (dist < 10) return;
+
+    saveToHistory();
+    
+    const shape = {
+      id: generateId(),
+      p1: { ...p1 },
+      p2: { ...p2 },
+      color: state.activeColor,
+      width: state.lineWidth,
+      cap: state.endCap,
+      tag: generateTag(),
+      measurement: null,
+      units: state.units,
+      description: ''
+    };
+
+    state.shapes.push(shape);
+    state.selectedShape = shape.id;
+    redraw();
+  }
+
+  function redraw() {
+    drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+    
+    for (const shape of state.shapes) {
+      drawMeasurementLine(shape);
+    }
+  }
+
+  function drawMeasurementLine(shape) {
+    const isSelected = shape.id === state.selectedShape;
+    
+    drawCtx.save();
+    drawCtx.strokeStyle = shape.color;
+    drawCtx.lineWidth = shape.width;
+    drawCtx.lineCap = 'round';
+    drawCtx.beginPath();
+    drawCtx.moveTo(shape.p1.x, shape.p1.y);
+    drawCtx.lineTo(shape.p2.x, shape.p2.y);
+    drawCtx.stroke();
+    
+    drawEndCap(shape.p1, shape.p2, shape.color, shape.width, shape.cap);
+    drawEndCap(shape.p2, shape.p1, shape.color, shape.width, shape.cap);
+    
+    drawTag(shape);
+    
+    if (shape.measurement) {
+      drawMeasurementLabel(shape);
+    }
+    
+    if (isSelected) {
+      drawSelectionHandles(shape);
+    }
+    
+    drawCtx.restore();
+  }
+
+  function drawEndCap(point, otherPoint, color, width, capType) {
+    const angle = Math.atan2(point.y - otherPoint.y, point.x - otherPoint.x);
+    
+    drawCtx.save();
+    drawCtx.translate(point.x, point.y);
+    drawCtx.rotate(angle);
+    drawCtx.fillStyle = color;
+    
+    if (capType === 'arrow') {
+      drawCtx.beginPath();
+      drawCtx.moveTo(0, 0);
+      drawCtx.lineTo(-12, -6);
+      drawCtx.lineTo(-12, 6);
+      drawCtx.closePath();
+      drawCtx.fill();
+    } else if (capType === 'circle') {
+      drawCtx.beginPath();
+      drawCtx.arc(0, 0, width * 1.5 + 3, 0, Math.PI * 2);
+      drawCtx.fill();
+    }
+    
+    drawCtx.restore();
+  }
+
+  function drawTag(shape) {
+    const center = {
+      x: (shape.p1.x + shape.p2.x) / 2,
+      y: (shape.p1.y + shape.p2.y) / 2
+    };
+    
+    const dx = shape.p2.x - shape.p1.x;
+    const dy = shape.p2.y - shape.p1.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len;
+    const ny = dx / len;
+    
+    const tagPos = {
+      x: center.x + nx * 20,
+      y: center.y + ny * 20
+    };
+    
+    drawBadge(shape.tag, tagPos, shape.color);
+  }
+
+  function drawMeasurementLabel(shape) {
+    const center = {
+      x: (shape.p1.x + shape.p2.x) / 2,
+      y: (shape.p1.y + shape.p2.y) / 2
+    };
+    
+    const labelPos = {
+      x: center.x + 50,
+      y: center.y - 20
+    };
+    
+    drawCtx.save();
+    drawCtx.strokeStyle = shape.color;
+    drawCtx.lineWidth = 1;
+    drawCtx.setLineDash([4, 4]);
+    drawCtx.beginPath();
+    drawCtx.moveTo(center.x, center.y);
+    drawCtx.lineTo(labelPos.x, labelPos.y);
+    drawCtx.stroke();
+    drawCtx.restore();
+    
+    drawBubble(formatMeasurement(shape.measurement, shape.units), labelPos);
+  }
+
+  function drawBadge(text, pos, color) {
+    drawCtx.save();
+    drawCtx.font = '11px system-ui';
+    drawCtx.textAlign = 'center';
+    drawCtx.textBaseline = 'middle';
+    
+    const metrics = drawCtx.measureText(text);
+    const w = metrics.width + 12;
+    const h = 20;
+    
+    drawCtx.fillStyle = color;
+    drawCtx.beginPath();
+    drawCtx.roundRect(pos.x - w/2, pos.y - h/2, w, h, 10);
+    drawCtx.fill();
+    
+    const luminance = getLuminance(color);
+    drawCtx.fillStyle = luminance > 0.5 ? '#000' : '#fff';
+    drawCtx.fillText(text, pos.x, pos.y);
+    
+    drawCtx.restore();
+  }
+
+  function drawBubble(text, pos) {
+    if (!text) return;
+    
+    drawCtx.save();
+    drawCtx.font = '12px system-ui';
+    drawCtx.textAlign = 'center';
+    drawCtx.textBaseline = 'middle';
+    
+    const metrics = drawCtx.measureText(text);
+    const w = metrics.width + 16;
+    const h = 24;
+    
+    drawCtx.fillStyle = 'rgba(18, 20, 27, 0.9)';
+    drawCtx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    drawCtx.lineWidth = 1;
+    drawCtx.beginPath();
+    drawCtx.roundRect(pos.x - w/2, pos.y - h/2, w, h, 12);
+    drawCtx.fill();
+    drawCtx.stroke();
+    
+    drawCtx.fillStyle = '#fff';
+    drawCtx.fillText(text, pos.x, pos.y);
+    
+    drawCtx.restore();
+  }
+
+  function drawSelectionHandles(shape) {
+    const points = [shape.p1, shape.p2];
+    
+    drawCtx.save();
+    drawCtx.fillStyle = '#fff';
+    drawCtx.strokeStyle = '#000';
+    drawCtx.lineWidth = 2;
+    
+    for (const point of points) {
+      drawCtx.beginPath();
+      drawCtx.arc(point.x, point.y, 8, 0, Math.PI * 2);
+      drawCtx.fill();
+      drawCtx.stroke();
+    }
+    
+    drawCtx.restore();
+  }
+
+  // Bluetooth functions
+  async function connectBluetooth() {
+    const connectBtn = document.getElementById('bluetoothConnectBtn');
+    const icon = document.getElementById('bluetoothIcon');
+    const title = document.getElementById('bluetoothTitle');
+    const description = document.getElementById('bluetoothDescription');
+
+    connectBtn.disabled = true;
+    connectBtn.textContent = 'Connecting...';
+    icon.style.color = 'var(--emryn-green)';
+
+    try {
+      if (!navigator.bluetooth) {
+        throw new Error('Bluetooth not supported. Requires HTTPS.');
+      }
+
+      const device = await navigator.bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: ['generic_access']
+      });
+
+      const server = await device.gatt.connect();
+      state.bluetooth.device = device;
+      state.bluetooth.connected = true;
+      
+      title.textContent = 'Connected!';
+      description.textContent = `Connected to ${device.name || 'Laser Device'}. You can now take measurements.`;
+      connectBtn.textContent = 'Connected';
+      
+      document.getElementById('laserBtn').classList.add('connected');
+      document.getElementById('laserStatus').textContent = 'READY';
+      
+      device.addEventListener('gattserverdisconnected', () => {
+        state.bluetooth.connected = false;
+        document.getElementById('laserBtn').classList.remove('connected', 'measuring');
+        document.getElementById('laserStatus').textContent = 'OFF';
+      });
+
+      const services = await server.getPrimaryServices();
+      for (const service of services) {
+        try {
+          const characteristics = await service.getCharacteristics();
+          for (const char of characteristics) {
+            if (char.properties.notify) {
+              await char.startNotifications();
+              char.addEventListener('characteristicvaluechanged', handleBluetoothData);
+            }
+          }
+        } catch (err) {
+          console.warn('Service access failed:', err);
+        }
+      }
+
+      setTimeout(() => {
+        showScreen('app');
+      }, 2000);
+      
+    } catch (err) {
+      console.error('Bluetooth failed:', err);
+      title.textContent = 'Connection Failed';
+      description.textContent = err.message || 'Could not connect to device. Please try again.';
+      connectBtn.disabled = false;
+      connectBtn.textContent = 'Try Again';
+      icon.style.color = 'var(--danger)';
+    }
+  }
+
+  function takeMeasurement() {
+    if (!state.bluetooth.connected) return;
+
+    state.bluetooth.measuring = true;
+    document.getElementById('laserBtn').classList.add('measuring');
+    document.getElementById('laserStatus').textContent = 'MEASURING';
+    
+    playBeep();
+    
+    setTimeout(() => {
+      simulateBluetoothReading("8' 6\"");
+      stopMeasurement();
+    }, 1500);
+  }
+
+  function stopMeasurement() {
+    state.bluetooth.measuring = false;
+    document.getElementById('laserBtn').classList.remove('measuring');
+    document.getElementById('laserStatus').textContent = 'READY';
+  }
+
+  function handleBluetoothData(event) {
+    const value = event.target.value;
+    let measurement = null;
+    
+    try {
+      const text = new TextDecoder().decode(value);
+      measurement = parseMeasurementText(text);
+    } catch (err) {
+      if (value.byteLength >= 2) {
+        const mm = value.getUint16(0, true);
+        measurement = { value: mm, units: 'metric' };
+      }
+    }
+    
+    if (measurement) {
+      playBeep();
+      applyMeasurement(measurement);
+      stopMeasurement();
+    }
+  }
+
+  function simulateBluetoothReading(text) {
+    const measurement = parseMeasurementText(text);
+    if (measurement) {
+      applyMeasurement(measurement);
+    }
+  }
+
+  function parseMeasurementText(text) {
+    text = text.trim().toLowerCase();
+    
+    const imperial = text.match(/(\d+)[\'\s]*(\d+(?:\.\d+)?)\s*(?:-\s*(\d+)\/(\d+))?/);
+    if (imperial) {
+      const ft = parseInt(imperial[1]) || 0;
+      const inches = parseFloat(imperial[2]) || 0;
+      const num = parseInt(imperial[3]) || 0;
+      const den = parseInt(imperial[4]) || 1;
+      const totalInches = ft * 12 + inches + num / den;
+      return { value: totalInches, units: 'imperial' };
+    }
+    
+    return null;
+  }
+
+  function applyMeasurement(measurement) {
+    const selected = getSelectedShape();
+    
+    if (selected) {
+      selected.measurement = measurement.value;
+      selected.units = measurement.units;
+      redraw();
+    }
+  }
+
+  function formatMeasurement(value, units) {
+    if (units === 'imperial') {
+      const sign = value < 0 ? '-' : '';
+      value = Math.abs(value);
+      const feet = Math.floor(value / 12);
+      const remainingInches = value - feet * 12;
+      const wholeInches = Math.floor(remainingInches);
+      const fraction = remainingInches - wholeInches;
+      
+      const denom = 16;
+      let num = Math.round(fraction * denom);
+      
+      if (num === denom) {
+        return `${sign}${feet}' ${wholeInches + 1}"`;
+      } else if (num === 0) {
+        return `${sign}${feet}' ${wholeInches}"`;
+      } else {
+        return `${sign}${feet}' ${wholeInches}-${num}/${denom}"`;
+      }
+    } else {
+      return `${Math.round(value)} mm`;
+    }
+  }
+
+  function showMeasurementInput() {
+    const input = prompt('Enter measurement (e.g., 8\' 6" or 2500mm):');
+    if (input) {
+      const measurement = parseMeasurementText(input);
+      if (measurement) {
+        applyMeasurement(measurement);
+      }
+    }
+  }
+
+  function deleteSelected() {
+    if (!state.selectedShape) return;
+    
+    saveToHistory();
+    state.shapes = state.shapes.filter(s => s.id !== state.selectedShape);
+    state.selectedShape = null;
+    redraw();
+  }
+
+  function undo() {
+    if (state.history.length === 0) return;
+    
+    const previousState = state.history.pop();
+    state.shapes = JSON.parse(JSON.stringify(previousState));
+    state.selectedShape = null;
+    redraw();
+  }
+
+  function saveToHistory() {
+    if (state.history.length >= 20) {
+      state.history.shift();
+    }
+    state.history.push(JSON.parse(JSON.stringify(state.shapes)));
+  }
+
+  function adjustZoom(factor) {
+    state.zoom = Math.max(0.5, Math.min(3, state.zoom * factor));
+    container.style.transform = `scale(${state.zoom})`;
+  }
+
+  function fitToScreen() {
+    if (!state.image) {
+      drawPlaceholder();
+      return;
+    }
+
+    const main = document.querySelector('.main');
+    const containerRect = main.getBoundingClientRect();
+    const containerW = containerRect.width;
+    const containerH = containerRect.height;
+    const imgW = state.imageNaturalSize.w;
+    const imgH = state.imageNaturalSize.h;
+
+    const scale = Math.min(containerW / imgW, containerH / imgH, 1);
+    
+    const canvasW = Math.floor(imgW * scale);
+    const canvasH = Math.floor(imgH * scale);
+
+    imageCanvas.width = drawCanvas.width = canvasW;
+    imageCanvas.height = drawCanvas.height = canvasH;
+    
+    state.canvasScale = scale;
+    state.zoom = 1;
+    container.style.transform = 'scale(1)';
+    container.style.transformOrigin = '50% 50%';
+
+    drawImage();
+    redraw();
+  }
+
+  function drawImage() {
+    imgCtx.clearRect(0, 0, imageCanvas.width, imageCanvas.height);
+    if (state.image) {
+      imgCtx.drawImage(state.image, 0, 0, imageCanvas.width, imageCanvas.height);
+    } else {
+      drawPlaceholder();
+    }
+  }
+
+  function drawPlaceholder() {
+    const w = imageCanvas.width || 400;
+    const h = imageCanvas.height || 300;
+    
+    imgCtx.fillStyle = '#0b0e13';
+    imgCtx.fillRect(0, 0, w, h);
+    
+    imgCtx.strokeStyle = '#161a22';
+    imgCtx.lineWidth = 1;
+    
+    for (let x = 0; x < w; x += 40) {
+      imgCtx.beginPath();
+      imgCtx.moveTo(x, 0);
+      imgCtx.lineTo(x, h);
+      imgCtx.stroke();
+    }
+    
+    for (let y = 0; y < h; y += 40) {
+      imgCtx.beginPath();
+      imgCtx.moveTo(0, y);
+      imgCtx.lineTo(w, y);
+      imgCtx.stroke();
+    }
+
+    imgCtx.fillStyle = '#666';
+    imgCtx.font = '16px system-ui';
+    imgCtx.textAlign = 'center';
+    imgCtx.textBaseline = 'middle';
+    imgCtx.fillText('Select "Sketch on Photo" to begin', w/2, h/2);
+  }
+
+  function initCanvas() {
+    const main = document.querySelector('.main');
+    const rect = main.getBoundingClientRect();
+    imageCanvas.width = drawCanvas.width = rect.width;
+    imageCanvas.height = drawCanvas.height = rect.height;
+    drawPlaceholder();
+  }
+
+  // Utility functions
+  function distance(p1, p2) {
+    return Math.hypot(p2.x - p1.x, p2.y - p1.y);
+  }
+
+  function distanceToLine(point, lineStart, lineEnd) {
+    const A = point.x - lineStart.x;
+    const B = point.y - lineStart.y;
+    const C = lineEnd.x - lineStart.x;
+    const D = lineEnd.y - lineStart.y;
+
+    const dot = A * C + B * D;
+    const lenSq = C * C + D * D;
+    
+    if (lenSq === 0) return distance(point, lineStart);
+    
+    let param = dot / lenSq;
+    
+    let xx, yy;
+    if (param < 0) {
+      xx = lineStart.x;
+      yy = lineStart.y;
+    } else if (param > 1) {
+      xx = lineEnd.x;
+      yy = lineEnd.y;
+    } else {
+      xx = lineStart.x + param * C;
+      yy = lineStart.y + param * D;
+    }
+
+    return distance(point, {x: xx, y: yy});
+  }
+
+  function getSelectedShape() {
+    return state.shapes.find(s => s.id === state.selectedShape);
+  }
+
+  function generateId() {
+    return Date.now().toString(36) + Math.random().toString(36);
+  }
+
+  function generateTag() {
+    return state.tagPrefix + state.tagCounter++;
+  }
+
+  function getLuminance(hex) {
+    const rgb = parseInt(hex.slice(1), 16);
+    const r = (rgb >> 16) & 255;
+    const g = (rgb >> 8) & 255;
+    const b = rgb & 255;
+    return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  }
+
+  function playBeep() {
+    try {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.value = 800;
+      gainNode.gain.value = 0.1;
+      
+      oscillator.start();
+      setTimeout(() => {
+        oscillator.stop();
+        audioContext.close();
+      }, 150);
+    } catch (err) {
+      console.warn('Audio not supported');
+    }
+  }
+
+  // Window resize handler
+  window.addEventListener('resize', () => {
+    if (state.currentScreen === 'app') {
+      setTimeout(fitToScreen, 100);
+    }
+  });
+})();
+</script>
+</body>
+</html>
+    <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+<title>EMRYN Measurement Tool</title>
+<style>
+  :root{
+    --bg: #0e0f12;
+    --panel: rgba(21, 24, 33, 0.95);
+    --muted: rgba(39, 43, 54, 0.8);
+    --text: #e8ecf1;
+    --sub: #b6c0cf;
+    --accent: #69b3ff;
+    --danger: #ff6b6b;
+    --ok: #52d273;
+    --emryn-green: #004025;
+    --overlay: rgba(0, 0, 0, 0.6);
+  }
+  
+  * { box-sizing: border-box; }
+  html, body { 
+    height: 100%; 
+    margin: 0; 
+    padding: 0;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+  }
+  
+  body {
+    background: var(--bg);
+    color: var(--text);
+    position: relative;
+  }
+
+  /* Home screen like DISTO */
+  .home-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    z-index: 300;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+  }
+
+  .home-screen.hidden {
+    display: none;
+  }
+
+  .home-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 0;
+    border-bottom: 1px solid #ddd;
+    margin-bottom: 30px;
+  }
+
+  .home-logo {
+    height: 40px;
+    width: auto;
+  }
+
+  .home-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+  }
+
+  .home-menu-btn {
+    width: 40px;
+    height: 40px;
+    background: none;
+    border: none;
+    font-size: 20px;
+    color: #333;
+    cursor: pointer;
+  }
+
+  .home-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    padding: 0 10px;
+  }
+
+  .home-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    position: relative;
+  }
+
+  .home-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+  }
+
+  .home-card-badge {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    background: #52d273;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: bold;
+  }
+
+  .home-card-icon {
+    width: 60px;
+    height: 60px;
+    margin-bottom: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+  }
+
+  .home-card-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    margin: 0;
+  }
+
+  /* Side menu like DISTO */
+  .side-menu {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 280px;
+    height: 100vh;
+    background: #fff;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    z-index: 400;
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.1);
+  }
+
+  .side-menu.open {
+    transform: translateX(0);
+  }
+
+  .side-menu-header {
+    background: var(--emryn-green);
+    color: white;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+  }
+
+  .side-menu-close {
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 5px;
+  }
+
+  .side-menu-logo {
+    height: 32px;
+    width: auto;
+    filter: invert(1);
+  }
+
+  .side-menu-title {
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .side-menu-content {
+    padding: 0;
+  }
+
+  .side-menu-section {
+    border-bottom: 1px solid #eee;
+    padding: 20px 0;
+  }
+
+  .side-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 15px 20px;
+    color: #333;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    font-size: 16px;
+  }
+
+  .side-menu-item:hover {
+    background: #f8f9fa;
+  }
+
+  .side-menu-item-icon {
+    width: 24px;
+    text-align: center;
+    font-size: 18px;
+  }
+
+  .menu-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--overlay);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    z-index: 350;
+  }
+
+  .menu-overlay.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Main app interface */
+  .app-interface {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--bg);
+    z-index: 100;
+  }
+
+  .top-toolbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background: var(--emryn-green);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 15px;
+    z-index: 150;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  }
+
+  .toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+  }
+
+  .emryn-logo {
+    height: 32px;
+    width: auto;
+    cursor: pointer;
+    filter: invert(1);
+  }
+
+  .back-btn {
+    color: #fff;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+  }
+
+  .back-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .toolbar-center {
+    flex: 1;
+    text-align: center;
+  }
+
+  .project-info {
+    color: #fff;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .toolbar-btn {
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 11px;
+    padding: 8px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 45px;
+  }
+
+  .toolbar-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .toolbar-btn-icon {
+    font-size: 16px;
+  }
+
+  /* Main canvas area */
+  .main {
+    position: fixed;
+    top: 60px;
+    left: 0;
+    right: 0;
+    bottom: 70px;
+    background: #0a0b0e;
+  }
+
+  #canvasContainer {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+  }
+
+  #imageCanvas, #drawCanvas {
+    position: absolute;
+    max-width: 100%;
+    max-height: 100%;
+  }
+  
+  #imageCanvas {
+    background: #0b0e13;
+    z-index: 1;
+  }
+  
+  #drawCanvas {
+    background: transparent;
+    z-index: 2;
+    touch-action: none;
+  }
+
+  /* Bottom toolbar */
+  .bottom-toolbar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 70px;
+    background: var(--panel);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid var(--muted);
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    padding: 0 20px;
+    z-index: 140;
+  }
+
+  .bottom-btn {
+    background: var(--muted);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 10px 16px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-width: 60px;
+    min-height: 50px;
+  }
+
+  .bottom-btn:hover, .bottom-btn.active {
+    background: var(--accent);
+    color: #000;
+    transform: translateY(-2px);
+  }
+
+  .bottom-btn-icon {
+    font-size: 18px;
+  }
+
+  /* Laser control */
+  .laser-control {
+    position: fixed;
+    bottom: 90px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 130;
+  }
+
+  .laser-btn {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: #333;
+    border: 4px solid #555;
+    color: #fff;
+    font-size: 11px;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+    transition: all 0.2s ease;
+  }
+
+  .laser-btn.connected {
+    background: var(--emryn-green);
+    border-color: #006635;
+    color: #fff;
+  }
+
+  .laser-btn.measuring {
+    animation: pulse 1s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: translateX(-50%) scale(1); }
+    50% { opacity: 0.8; transform: translateX(-50%) scale(1.05); }
+  }
+
+  /* Floating controls */
+  .floating-controls {
+    position: fixed;
+    bottom: 90px;
+    right: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 130;
+  }
+
+  .float-btn {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: var(--panel);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--muted);
+    color: var(--text);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease;
+  }
+
+  .float-btn:hover {
+    background: var(--accent);
+    color: #000;
+    transform: scale(1.05);
+  }
+
+  /* Context menu for selected lines */
+  .context-menu {
+    position: fixed;
+    background: var(--panel);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--muted);
+    border-radius: 8px;
+    padding: 8px 0;
+    z-index: 200;
+    opacity: 0;
+    visibility: hidden;
+    transform: scale(0.95);
+    transition: all 0.2s ease;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    min-width: 150px;
+  }
+
+  .context-menu.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: scale(1);
+  }
+
+  .context-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    color: var(--text);
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    font-size: 14px;
+  }
+
+  .context-menu-item:hover {
+    background: rgba(105, 179, 255, 0.1);
+  }
+
+  .context-menu-item.danger:hover {
+    background: rgba(255, 107, 107, 0.1);
+    color: var(--danger);
+  }
+
+  /* Bluetooth connection screen */
+  .bluetooth-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--bg);
+    z-index: 250;
+    display: none;
+    flex-direction: column;
+  }
+
+  .bluetooth-screen.visible {
+    display: flex;
+  }
+
+  .bluetooth-header {
+    height: 60px;
+    background: var(--emryn-green);
+    display: flex;
+    align-items: center;
+    padding: 0 15px;
+    gap: 15px;
+  }
+
+  .bluetooth-back {
+    color: #fff;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 8px;
+  }
+
+  .bluetooth-title {
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .bluetooth-content {
+    flex: 1;
+    padding: 30px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 30px;
+  }
+
+  .bluetooth-icon {
+    width: 80px;
+    height: 80px;
+    background: var(--panel);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    color: var(--accent);
+  }
+
+  .bluetooth-text {
+    max-width: 300px;
+  }
+
+  .bluetooth-text h3 {
+    margin: 0 0 10px 0;
+    color: var(--text);
+    font-size: 18px;
+  }
+
+  .bluetooth-text p {
+    margin: 0;
+    color: var(--sub);
+    line-height: 1.4;
+  }
+
+  .bluetooth-btn {
+    background: var(--emryn-green);
+    border: none;
+    color: #fff;
+    padding: 15px 30px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .bluetooth-btn:hover {
+    background: #006635;
+    transform: translateY(-2px);
+  }
+
+  .bluetooth-btn:disabled {
+    background: var(--muted);
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* Buttons and inputs */
+  .btn {
+    padding: 10px 14px;
+    border: 1px solid var(--muted);
+    border-radius: 6px;
+    background: var(--muted);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s ease;
+    text-align: center;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .btn:hover {
+    background: var(--accent);
+    color: #000;
+  }
+
+  .btn.ok {
+    background: var(--ok);
+    color: #000;
+  }
+
+  .input {
+    padding: 10px;
+    border: 1px solid var(--muted);
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.3);
+    color: var(--text);
+    font-size: 13px;
+    width: 100%;
+    min-height: 40px;
+  }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+  <!-- Home screen like DISTO -->
+  <div class="home-screen" id="homeScreen">
+    <div class="home-header">
+      <img src="data:image/svg+xml,%3Csvg viewBox='0 0 200 50' xmlns='http://www.w3.org/2000/svg'%3E%3Ctext x='10' y='35' font-family='Arial, sans-serif' font-size='32' font-weight='bold' fill='%23004025'%3EEMRYN%3C/text%3E%3C/svg%3E" alt="EMRYN" class="home-logo" />
+      <div class="home-title">Home</div>
+      <button class="home-menu-btn" id="homeMenuBtn">☰</button>
+    </div>
+    
+    <div class="home-grid">
+      <div class="home-card" id="sketchOnPhotoCard">
+        <div class="home-card-badge">FREE</div>
+        <div class="home-card-icon">📐</div>
+        <h3 class="home-card-title">Sketch on Photo</h3>
+      </div>
+      
+      <div class="home-card" id="sketchPlanCard">
+        <div class="home-card-badge">FREE</div>
+        <div class="home-card-icon">📋</div>
+        <h3 class="home-card-title">Sketch Plan</h3>
+      </div>
+      
+      <div class="home-card" id="p2pMeasureCard">
+        <div class="home-card-icon">📏</div>
+        <h3 class="home-card-title">P2P Measure</h3>
+      </div>
+      
+      <div class="home-card" id="smartRoomCard">
+        <div class="home-card-badge">FREE</div>
+        <div class="home-card-icon">🏠</div>
+        <h3 class="home-card-title">Smart Room</h3>
+      </div>
+      
+      <div class="home-card" id="organiserCard">
+        <div class="home-card-badge">FREE</div>
+        <div class="home-card-icon">📁</div>
+        <h3 class="home-card-title">Organiser</h3>
+      </div>
+    </div>
+  </div>
+
+  <!-- Side menu overlay -->
+  <div class="menu-overlay" id="menuOverlay"></div>
+
+  <!-- Side menu like DISTO -->
+  <div class="side-menu" id="sideMenu">
+    <div class="side-menu-header">
+      <div class="side-menu-close" id="sideMenuClose">✕</div>
+      <img src="data:image/svg+xml,%3Csvg viewBox='0 0 200 50' xmlns='http://www.w3.org/2000/svg'%3E%3Ctext x='10' y='35' font-family='Arial, sans-serif' font-size='32' font-weight='bold' fill='white'%3EEMRYN%3C/text%3E%3C/svg%3E" alt="EMRYN" class="side-menu-logo" />
+      <div class="side-menu-title">Plan</div>
+    </div>
+    
+    <div class="side-menu-content">
+      <div class="side-menu-section">
+        <button class="side-menu-item" id="menuSketchPhoto">
+          <div class="side-menu-item-icon">📐</div>
+          <span>Sketch on Photo</span>
+        </button>
+        <button class="side-menu-item" id="menuSketchPlan">
+          <div class="side-menu-item-icon">📋</div>
+          <span>Sketch Plan</span>
+        </button>
+        <button class="side-menu-item" id="menuP2PMeasure">
+          <div class="side-menu-item-icon">📏</div>
+          <span>P2P Measure</span>
+        </button>
+        <button class="side-menu-item" id="menuSmartRoom">
+          <div class="side-menu-item-icon">🏠</div>
+          <span>Smart Room</span>
+        </button>
+        <button class="side-menu-item" id="menuOrganiser">
+          <div class="side-menu-item-icon">📁</div>
+          <span>Organiser</span>
+        </button>
+      </div>
+      
+      <div class="side-menu-section">
+        <button class="side-menu-item" id="menuMyDevices">
+          <div class="side-menu-item-icon">📱</div>
+          <span>My Devices</span>
+        </button>
+        <button class="side-menu-item" id="menuMyPurchases">
+          <div class="side-menu-item-icon">🛒</div>
+          <span>My Purchases</span>
+        </button>
+      </div>
+      
+      <div class="side-menu-section">
+        <button class="side-menu-item" id="menuSettings">
+          <div class="side-menu-item-icon">⚙️</div>
+          <span>Settings</span>
+        </button>
+        <button class="side-menu-item" id="menuHelp">
+          <div class="side-menu-item-icon">❓</div>
+          <span>Help</span>
+        </button>
+        <button class="side-menu-item" id="menuAbout">
+          <div class="side-menu-item-icon">ℹ️</div>
+          <span>About</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main app interface -->
+  <div class="app-interface hidden" id="appInterface">
+    <!-- Top toolbar -->
+    <div class="top-toolbar">
+      <div class="toolbar-left">
+        <img src="data:image/svg+xml,%3Csvg viewBox='0 0 200 50' xmlns='http://www.w3.org/2000/svg'%3E%3Ctext x='10' y='35' font-family='Arial, sans-serif' font-size='32' font-weight='bold' fill='white'%3EEMRYN%3C/text%3E%3C/svg%3E" alt="EMRYN" class="emryn-logo" id="emrynLogo" />
+        <div class="back-btn" id="backBtn">←</div>
+      </div>
+      
+      <div class="toolbar-center">
+        <div class="project-info" id="projectInfo">New Project</div>
+      </div>
+      
+      <div class="toolbar-right">
+        <button class="toolbar-btn" id="exportBtn">
+          <div class="toolbar-btn-icon">↗</div>
+          <div>Export</div>
+        </button>
+        <button class="toolbar-btn" id="toolsBtn">
+          <div class="toolbar-btn-icon">🛠</div>
+          <div>Tools</div>
+        </button>
+        <button class="toolbar-btn" id="undoBtn">
+          <div class="toolbar-btn-icon">↶</div>
+          <div>Undo</div>
+        </button>
+        <button class="toolbar-btn" id="newBtn">
+          <div class="toolbar-btn-icon">📄</div>
+          <div>New</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Main canvas -->
+    <main class="main">
+      <div id="canvasContainer">
+        <canvas id="imageCanvas"></canvas>
+        <canvas id="drawCanvas"></canvas>
+      </div>
+    </main>
+
+    <!-- Bottom toolbar -->
+    <div class="bottom-toolbar">
+      <button class="bottom-btn active" id="drawToolBtn">
+        <div class="bottom-btn-icon">✏️</div>
+        <div>Draw</div>
+      </button>
+      <button class="bottom-btn" id="selectToolBtn">
+        <div class="bottom-btn-icon">👆</div>
+        <div>Select</div>
+      </button>
+    </div>
+
+    <!-- Floating controls -->
+    <div class="floating-controls">
+      <button class="float-btn" id="undoFloatBtn" title="Undo">↶</button>
+      <button class="float-btn" id="measureFloatBtn" title="Quick Measure">📏</button>
+    </div>
+
+    <!-- Laser control -->
+    <div class="laser-control">
+      <button class="laser-btn" id="laserBtn">
+        <div style="font-size: 10px;">LASER</div>
+        <div id="laserStatus">OFF</div>
+      </button>
+    </div>
+
+    <!-- Context menu for selected lines -->
+    <div class="context-menu" id="contextMenu">
+      <button class="context-menu-item" id="contextEdit">
+        <div>✏️</div>
+        <span>Edit</span>
+      </button>
+      <button class="context-menu-item" id="contextAddMeasure">
+        <div>📏</div>
+        <span>Add Measurement</span>
+      </button>
+      <button class="context-menu-item danger" id="contextDelete">
+        <div>🗑</div>
+        <span>Delete</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Bluetooth connection screen -->
+  <div class="bluetooth-screen" id="bluetoothScreen">
+    <div class="bluetooth-header">
+      <div class="bluetooth-back" id="bluetoothBack">←</div>
+      <div class="bluetooth-title">Connect Laser</div>
+    </div>
+    
+    <div class="bluetooth-content">
+      <div class="bluetooth-icon" id="bluetoothIcon">📡</div>
+      
+      <div class="bluetooth-text">
+        <h3 id="bluetoothTitle">Connect Your Laser Device</h3>
+        <p id="bluetoothDescription">Turn on your laser measuring device and tap connect to pair via Bluetooth.</p>
+      </div>
+      
+      <button class="bluetooth-btn" id="bluetoothConnectBtn">Connect Device</button>
+      
+      <div style="margin-top: 20px; color: var(--sub); font-size: 12px; text-align: center;">
+        Supported devices: Leica DISTO, Bosch GLM, and other Bluetooth-enabled laser measures
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // State
+  const state = {
+    currentScreen: 'home', // 'home' | 'app' | 'bluetooth'
+    tool: 'draw',
+    colors: ['#ff4d4f','#ffa502','#ffd166','#2ed573','#1e90ff','#a29bfe','#f368e0','#f1f2f6','#57606a'],
+    activeColor: '#1e90ff',
+    lineWidth: 3,
+    endCap: 'arrow',
+    units: 'imperial',
+    tagPrefix: 'A',
+    tagCounter: 1,
+    shapes: [],
+    selectedShape: null,
+    dragging: null,
+    image: null,
+    imageNaturalSize: {w: 0, h: 0},
+    canvasScale: 1,
+    zoom: 1,
+    history: [],
+    bluetooth: {device: null, connected: false, measuring: false},
+    contextMenuVisible: false
+  };
+
+  // Elements
+  const homeScreen = document.getElementById('homeScreen');
+  const appInterface = document.getElementById('appInterface');
+  const bluetoothScreen = document.getElementById('bluetoothScreen');
+  const sideMenu = document.getElementById('sideMenu');
+  const menuOverlay = document.getElementById('menuOverlay');
+  const contextMenu = document.getElementById('contextMenu');
+  
+  const imageCanvas = document.getElementById('imageCanvas');
+  const drawCanvas = document.getElementById('drawCanvas');
+  const container = document.getElementById('canvasContainer');
+  const imgCtx = imageCanvas.getContext('2d');
+  const drawCtx = drawCanvas.getContext('2d');
+
+  // Initialize
+  setupEventListeners();
+  showScreen('home');
+
+  function setupEventListeners() {
+    // Home screen cards
+    document.getElementByI
