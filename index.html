@@ -1,0 +1,2577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+<title>EMRYN Measurement Tool</title>
+<style>
+  :root {
+    --bg: #0e0f12;
+    --panel: rgba(21, 24, 33, 0.95);
+    --muted: rgba(39, 43, 54, 0.8);
+    --text: #e8ecf1;
+    --sub: #b6c0cf;
+    --accent: #004025;
+    --danger: #ff6b6b;
+    --ok: #52d273;
+    --overlay: rgba(0, 0, 0, 0.6);
+  }
+  
+  * { box-sizing: border-box; }
+  html, body { 
+    height: 100%; 
+    margin: 0; 
+    padding: 0;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+  }
+  
+  body {
+    background: var(--bg);
+    color: var(--text);
+    position: relative;
+  }
+
+  /* Home screen */
+  .home-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    z-index: 300;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+  }
+
+  .home-screen.hidden {
+    display: none;
+  }
+
+  .home-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 0;
+    border-bottom: 1px solid #ddd;
+    margin-bottom: 30px;
+  }
+
+  .home-logo {
+    height: 40px;
+    width: auto;
+    opacity: 0.8;
+    cursor: pointer;
+  }
+
+  .home-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+  }
+
+  .home-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    padding: 0 10px;
+  }
+
+  .home-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 25px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    position: relative;
+    min-height: 140px;
+    justify-content: center;
+  }
+
+  .home-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+  }
+
+  .home-card-badge {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    background: var(--ok);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: bold;
+  }
+
+  .home-card-icon {
+    width: 60px;
+    height: 60px;
+    margin-bottom: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+  }
+
+  .home-card-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    margin: 0;
+  }
+
+  /* Side menu */
+  .side-menu {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 280px;
+    height: 100vh;
+    background: #fff;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    z-index: 400;
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.1);
+  }
+
+  .side-menu.open {
+    transform: translateX(0);
+  }
+
+  .side-menu-header {
+    background: var(--accent);
+    color: white;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+  }
+
+  .side-menu-close {
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 5px;
+  }
+
+  .side-menu-logo {
+    height: 32px;
+    width: auto;
+    filter: invert(1);
+  }
+
+  .side-menu-title {
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .side-menu-content {
+    padding: 0;
+  }
+
+  .side-menu-section {
+    border-bottom: 1px solid #eee;
+  }
+
+  .side-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 16px 20px;
+    color: #333;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    font-size: 16px;
+    min-height: 56px;
+  }
+
+  .side-menu-item:hover {
+    background: #f8f9fa;
+  }
+
+  .side-menu-item-icon {
+    width: 24px;
+    text-align: center;
+    font-size: 18px;
+  }
+
+  .menu-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--overlay);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    z-index: 350;
+  }
+
+  .menu-overlay.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Main app interface */
+  .app-interface {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--bg);
+    z-index: 100;
+  }
+
+  .top-toolbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 15px;
+    z-index: 150;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  }
+
+  .toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+  }
+
+  .emryn-logo {
+    height: 32px;
+    width: auto;
+    cursor: pointer;
+    filter: invert(1);
+    opacity: 0.9;
+  }
+
+  .back-btn {
+    color: #fff;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .back-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .toolbar-center {
+    flex: 1;
+    text-align: center;
+  }
+
+  .project-info {
+    color: #fff;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .toolbar-btn {
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 11px;
+    padding: 8px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .toolbar-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .toolbar-btn-icon {
+    font-size: 16px;
+  }
+
+  /* Main canvas area */
+  .main {
+    position: fixed;
+    top: 60px;
+    left: 0;
+    right: 0;
+    bottom: 120px;
+    background: #0a0b0e;
+  }
+
+  #canvasContainer {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+  }
+
+  #imageCanvas, #drawCanvas {
+    position: absolute;
+    max-width: 100%;
+    max-height: 100%;
+  }
+  
+  #imageCanvas {
+    background: #0b0e13;
+    z-index: 1;
+  }
+  
+  #drawCanvas {
+    background: transparent;
+    z-index: 2;
+    touch-action: none;
+  }
+
+  /* Measurement history panel */
+  .measurement-history {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 120px;
+    background: var(--panel);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid var(--muted);
+    z-index: 140;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .history-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--muted);
+  }
+
+  .history-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--sub);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .clear-history-btn {
+    background: none;
+    border: none;
+    color: var(--sub);
+    font-size: 11px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+  }
+
+  .clear-history-btn:hover {
+    background: var(--muted);
+    color: var(--text);
+  }
+
+  .history-list {
+    flex: 1;
+    overflow-x: auto;
+    padding: 8px 16px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .history-item {
+    background: var(--muted);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+  }
+
+  .history-item:hover {
+    background: var(--accent);
+    color: #fff;
+    transform: translateY(-1px);
+  }
+
+  /* Laser control */
+  .laser-control {
+    position: fixed;
+    bottom: 140px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 130;
+  }
+
+  .laser-btn {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: #333;
+    border: 4px solid #555;
+    color: #fff;
+    font-size: 11px;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+    transition: all 0.2s ease;
+  }
+
+  .laser-btn.connected {
+    background: var(--accent);
+    border-color: #006635;
+    color: #fff;
+  }
+
+  .laser-btn.measuring {
+    animation: pulse 1s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: translateX(-50%) scale(1); }
+    50% { opacity: 0.8; transform: translateX(-50%) scale(1.05); }
+  }
+
+  /* Floating controls */
+  .floating-controls {
+    position: fixed;
+    bottom: 140px;
+    right: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 130;
+  }
+
+  .float-btn {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: var(--panel);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--muted);
+    color: var(--text);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .float-btn:hover {
+    background: var(--accent);
+    color: #fff;
+    transform: scale(1.05);
+  }
+
+  /* Context menu */
+  .context-menu {
+    position: fixed;
+    background: var(--panel);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--muted);
+    border-radius: 8px;
+    padding: 8px 0;
+    z-index: 200;
+    opacity: 0;
+    visibility: hidden;
+    transform: scale(0.95);
+    transition: all 0.2s ease;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    min-width: 180px;
+  }
+
+  .context-menu.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: scale(1);
+  }
+
+  .context-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    color: var(--text);
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    font-size: 14px;
+    min-height: 44px;
+  }
+
+  .context-menu-item:hover {
+    background: rgba(0, 64, 37, 0.1);
+  }
+
+  .context-menu-item.danger:hover {
+    background: rgba(255, 107, 107, 0.1);
+    color: var(--danger);
+  }
+
+  /* Manual measurement keypad */
+  .measurement-keypad {
+    position: fixed;
+    bottom: 50%;
+    left: 50%;
+    transform: translate(-50%, 50%);
+    background: var(--panel);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--muted);
+    border-radius: 12px;
+    padding: 24px;
+    z-index: 250;
+    opacity: 0;
+    visibility: hidden;
+    transform: translate(-50%, 50%) scale(0.9);
+    transition: all 0.3s ease;
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+    width: 320px;
+    max-width: 90vw;
+  }
+
+  .measurement-keypad.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(-50%, 50%) scale(1);
+  }
+
+  .keypad-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .keypad-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .keypad-close {
+    background: none;
+    border: none;
+    color: var(--sub);
+    font-size: 20px;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .keypad-close:hover {
+    background: var(--muted);
+    color: var(--text);
+  }
+
+  .keypad-inputs {
+    display: grid;
+    grid-template-columns: 1fr 1fr 60px;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .fraction-inputs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    grid-column: 1 / -1;
+    margin-top: 8px;
+  }
+
+  .keypad-input {
+    padding: 12px;
+    border: 1px solid var(--muted);
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.3);
+    color: var(--text);
+    font-size: 14px;
+    min-height: 44px;
+    text-align: center;
+  }
+
+  .keypad-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(0, 64, 37, 0.2);
+  }
+
+  .keypad-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 20px;
+  }
+
+  .keypad-btn {
+    padding: 12px 16px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-height: 44px;
+  }
+
+  .keypad-btn.primary {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .keypad-btn.primary:hover {
+    background: #006635;
+    transform: translateY(-1px);
+  }
+
+  .keypad-btn.secondary {
+    background: var(--muted);
+    color: var(--text);
+  }
+
+  .keypad-btn.secondary:hover {
+    background: #3a4050;
+  }
+
+  /* Source chooser */
+  .source-chooser {
+    position: fixed;
+    bottom: 50%;
+    left: 50%;
+    transform: translate(-50%, 50%);
+    background: var(--panel);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--muted);
+    border-radius: 12px;
+    padding: 24px;
+    z-index: 250;
+    opacity: 0;
+    visibility: hidden;
+    transform: translate(-50%, 50%) scale(0.9);
+    transition: all 0.3s ease;
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+    min-width: 280px;
+  }
+
+  .source-chooser.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(-50%, 50%) scale(1);
+  }
+
+  .chooser-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 20px;
+    text-align: center;
+  }
+
+  .chooser-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .chooser-btn {
+    padding: 16px 20px;
+    border: 1px solid var(--muted);
+    border-radius: 8px;
+    background: var(--muted);
+    color: var(--text);
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 56px;
+  }
+
+  .chooser-btn:hover {
+    background: var(--accent);
+    color: #fff;
+    transform: translateY(-1px);
+  }
+
+  .chooser-btn-icon {
+    font-size: 20px;
+    width: 24px;
+    text-align: center;
+  }
+
+  /* My Devices screen */
+  .my-devices-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--bg);
+    z-index: 250;
+    display: none;
+    flex-direction: column;
+  }
+
+  .my-devices-screen.visible {
+    display: flex;
+  }
+
+  .devices-header {
+    height: 60px;
+    background: var(--accent);
+    display: flex;
+    align-items: center;
+    padding: 0 15px;
+    gap: 15px;
+  }
+
+  .devices-back {
+    color: #fff;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 8px;
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .devices-title {
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .devices-content {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+  }
+
+  .device-card {
+    background: var(--panel);
+    border: 1px solid var(--muted);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+
+  .device-info {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 16px;
+  }
+
+  .device-icon {
+    width: 48px;
+    height: 48px;
+    background: var(--muted);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+  }
+
+  .device-details h3 {
+    margin: 0 0 4px 0;
+    font-size: 16px;
+    color: var(--text);
+  }
+
+  .device-status {
+    font-size: 12px;
+    color: var(--sub);
+  }
+
+  .device-status.connected {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .device-actions {
+    display: flex;
+    gap: 12px;
+  }
+
+  .device-btn {
+    padding: 10px 16px;
+    border: 1px solid var(--muted);
+    border-radius: 6px;
+    background: var(--muted);
+    color: var(--text);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-height: 44px;
+  }
+
+  .device-btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  .device-btn:hover {
+    transform: translateY(-1px);
+  }
+
+  .auto-connect-toggle {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 20px;
+    padding: 16px;
+    background: var(--panel);
+    border: 1px solid var(--muted);
+    border-radius: 8px;
+  }
+
+  .toggle-switch {
+    position: relative;
+    width: 50px;
+    height: 26px;
+    background: var(--muted);
+    border-radius: 13px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+
+  .toggle-switch.active {
+    background: var(--accent);
+  }
+
+  .toggle-knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 22px;
+    height: 22px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.2s ease;
+  }
+
+  .toggle-switch.active .toggle-knob {
+    transform: translateX(24px);
+  }
+
+  .hidden { display: none !important; }
+
+  /* Responsive adjustments */
+  @media (max-width: 480px) {
+    .measurement-keypad {
+      width: 95vw;
+      padding: 20px;
+    }
+    
+    .keypad-inputs {
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    
+    .fraction-inputs {
+      grid-template-columns: 1fr 80px;
+    }
+    
+    .home-grid {
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+    
+    .toolbar-right {
+      gap: 4px;
+    }
+    
+    .toolbar-btn {
+      min-width: 40px;
+      font-size: 10px;
+      padding: 6px 8px;
+    }
+  }
+</style>
+</head>
+<body>
+  <!-- Home screen -->
+  <div class="home-screen" id="homeScreen">
+    <div class="home-header">
+      <img src="data:image/svg+xml,%3Csvg viewBox='0 0 200 50' xmlns='http://www.w3.org/2000/svg'%3E%3Ctext x='10' y='35' font-family='Arial, sans-serif' font-size='32' font-weight='bold' fill='%23004025'%3EEMRYN%3C/text%3E%3C/svg%3E" alt="EMRYN" class="home-logo" id="homeMenuBtn" />
+      <div class="home-title">Home</div>
+    </div>
+    
+    <div class="home-grid">
+      <div class="home-card" id="sketchOnPhotoCard">
+        <div class="home-card-badge">FREE</div>
+        <div class="home-card-icon">📐</div>
+        <h3 class="home-card-title">Sketch on Photo</h3>
+      </div>
+      
+      <div class="home-card" id="organiserCard">
+        <div class="home-card-badge">FREE</div>
+        <div class="home-card-icon">📁</div>
+        <h3 class="home-card-title">Organiser</h3>
+      </div>
+    </div>
+  </div>
+
+  <!-- Menu overlay -->
+  <div class="menu-overlay" id="menuOverlay"></div>
+
+  <!-- Side menu -->
+  <div class="side-menu" id="sideMenu">
+    <div class="side-menu-header">
+      <div class="side-menu-close" id="sideMenuClose">✕</div>
+      <img src="data:image/svg+xml,%3Csvg viewBox='0 0 200 50' xmlns='http://www.w3.org/2000/svg'%3E%3Ctext x='10' y='35' font-family='Arial, sans-serif' font-size='32' font-weight='bold' fill='white'%3EEMRYN%3C/text%3E%3C/svg%3E" alt="EMRYN" class="side-menu-logo" />
+      <div class="side-menu-title">Menu</div>
+    </div>
+    
+    <div class="side-menu-content">
+      <div class="side-menu-section">
+        <button class="side-menu-item" id="menuSketchPhoto">
+          <div class="side-menu-item-icon">📐</div>
+          <span>Sketch on Photo</span>
+        </button>
+        <button class="side-menu-item" id="menuOrganiser">
+          <div class="side-menu-item-icon">📁</div>
+          <span>Organiser</span>
+        </button>
+      </div>
+      
+      <div class="side-menu-section">
+        <button class="side-menu-item" id="menuMyDevices">
+          <div class="side-menu-item-icon">📱</div>
+          <span>My Devices</span>
+        </button>
+        <button class="side-menu-item" id="menuSettings">
+          <div class="side-menu-item-icon">⚙️</div>
+          <span>Settings</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main app interface -->
+  <div class="app-interface hidden" id="appInterface">
+    <!-- Top toolbar -->
+    <div class="top-toolbar">
+      <div class="toolbar-left">
+        <img src="data:image/svg+xml,%3Csvg viewBox='0 0 200 50' xmlns='http://www.w3.org/2000/svg'%3E%3Ctext x='10' y='35' font-family='Arial, sans-serif' font-size='32' font-weight='bold' fill='white'%3EEMRYN%3C/text%3E%3C/svg%3E" alt="EMRYN" class="emryn-logo" id="emrynLogo" />
+        <div class="back-btn" id="backBtn">←</div>
+      </div>
+      
+      <div class="toolbar-center">
+        <div class="project-info" id="projectInfo">New Project</div>
+      </div>
+      
+      <div class="toolbar-right">
+        <button class="toolbar-btn" id="exportBtn">
+          <div class="toolbar-btn-icon">↗</div>
+          <div>Export</div>
+        </button>
+        <button class="toolbar-btn" id="undoBtn">
+          <div class="toolbar-btn-icon">↶</div>
+          <div>Undo</div>
+        </button>
+        <button class="toolbar-btn" id="newBtn">
+          <div class="toolbar-btn-icon">📄</div>
+          <div>New</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Main canvas -->
+    <main class="main">
+      <div id="canvasContainer">
+        <canvas id="imageCanvas"></canvas>
+        <canvas id="drawCanvas"></canvas>
+      </div>
+    </main>
+
+    <!-- Measurement history panel -->
+    <div class="measurement-history">
+      <div class="history-header">
+        <div class="history-title">Recent Measurements</div>
+        <button class="clear-history-btn" id="clearHistoryBtn">Clear</button>
+      </div>
+      <div class="history-list" id="historyList">
+        <div style="color: var(--sub); font-size: 11px; text-align: center; width: 100%;">
+          Measurements from laser or manual entry will appear here
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating controls -->
+    <div class="floating-controls">
+      <button class="float-btn" id="lineToolBtn" title="Draw Line">✏️</button>
+      <button class="float-btn" id="manualMeasureBtn" title="Manual Entry">📏</button>
+    </div>
+
+    <!-- Laser control -->
+    <div class="laser-control">
+      <button class="laser-btn" id="laserBtn">
+        <div style="font-size: 10px;">LASER</div>
+        <div id="laserStatus">OFF</div>
+      </button>
+    </div>
+
+    <!-- Context menu -->
+    <div class="context-menu" id="contextMenu">
+      <button class="context-menu-item" id="contextEdit">
+        <div>✏️</div>
+        <span>Edit Measurement</span>
+      </button>
+      <button class="context-menu-item" id="contextDuplicate">
+        <div>📋</div>
+        <span>Duplicate</span>
+      </button>
+      <button class="context-menu-item" id="contextAddText">
+        <div>🅰</div>
+        <span>Add Text</span>
+      </button>
+      <button class="context-menu-item danger" id="contextDelete">
+        <div>🗑</div>
+        <span>Delete</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Source chooser -->
+  <div class="source-chooser" id="sourceChooser">
+    <div class="chooser-title">Select picture</div>
+    <div class="chooser-buttons">
+      <button class="chooser-btn" id="chooserCamera">
+        <div class="chooser-btn-icon">📷</div>
+        <span>Camera</span>
+      </button>
+      <button class="chooser-btn" id="chooserGallery">
+        <div class="chooser-btn-icon">🖼</div>
+        <span>Gallery</span>
+      </button>
+      <button class="chooser-btn" id="chooserPdf">
+        <div class="chooser-btn-icon">📄</div>
+        <span>PDF</span>
+      </button>
+      <button class="chooser-btn" id="chooserCancel" style="background: var(--muted); margin-top: 12px;">
+        <div class="chooser-btn-icon">✕</div>
+        <span>Cancel</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Manual measurement keypad -->
+  <div class="measurement-keypad" id="measurementKeypad">
+    <div class="keypad-header">
+      <div class="keypad-title">Enter Measurement</div>
+      <button class="keypad-close" id="keypadClose">✕</button>
+    </div>
+    
+    <div class="keypad-inputs">
+      <input class="keypad-input" id="feetInput" type="number" placeholder="ft" min="0" />
+      <input class="keypad-input" id="inchesInput" type="number" placeholder="in" min="0" max="11" />
+      <input class="keypad-input" id="numInput" type="number" placeholder="num" min="0" />
+      
+      <div class="fraction-inputs">
+        <select class="keypad-input" id="denomInput">
+          <option value="2">1/2</option>
+          <option value="4">1/4</option>
+          <option value="8" selected>1/8</option>
+          <option value="16">1/16</option>
+          <option value="32">1/32</option>
+          <option value="64">1/64</option>
+        </select>
+      </div>
+    </div>
+    
+    <div class="keypad-actions">
+      <button class="keypad-btn secondary" id="keypadCancel">Cancel</button>
+      <button class="keypad-btn primary" id="keypadApply">Apply</button>
+    </div>
+  </div>
+
+  <!-- My Devices screen -->
+  <div class="my-devices-screen" id="myDevicesScreen">
+    <div class="devices-header">
+      <div class="devices-back" id="devicesBack">←</div>
+      <div class="devices-title">My Devices</div>
+    </div>
+    
+    <div class="devices-content">
+      <div class="auto-connect-toggle">
+        <div class="toggle-switch" id="autoConnectToggle">
+          <div class="toggle-knob"></div>
+        </div>
+        <div>
+          <div style="font-weight: 600; margin-bottom: 4px;">Auto-connect</div>
+          <div style="font-size: 12px; color: var(--sub);">Automatically reconnect to last device</div>
+        </div>
+      </div>
+      
+      <div class="device-card">
+        <div class="device-info">
+          <div class="device-icon">📡</div>
+          <div class="device-details">
+            <h3>Laser Measure Device</h3>
+            <div class="device-status" id="deviceStatus">Not connected</div>
+          </div>
+        </div>
+        <div class="device-actions">
+          <button class="device-btn primary" id="connectDeviceBtn">Connect</button>
+          <button class="device-btn" id="disconnectDeviceBtn" disabled>Disconnect</button>
+        </div>
+      </div>
+      
+      <div style="margin-top: 20px; padding: 16px; background: var(--panel); border: 1px solid var(--muted); border-radius: 8px;">
+        <div style="font-size: 12px; color: var(--sub); line-height: 1.4;">
+          <strong>Supported devices:</strong><br>
+          Leica DISTO series, Bosch GLM series, and other Bluetooth-enabled laser measuring devices.<br><br>
+          <strong>Requirements:</strong><br>
+          • HTTPS connection required<br>
+          • Bluetooth permissions enabled<br>
+          • Device must be in pairing mode
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden file inputs -->
+  <input type="file" id="fileInput" accept="image/*" class="hidden" />
+  <input type="file" id="pdfInput" accept=".pdf" class="hidden" />
+
+<script>
+(() => {
+  // State with preserved measurement data structure per spec
+  const state = {
+    currentScreen: 'home',
+    tool: 'line',
+    activeColor: '#1e90ff',
+    lineWidth: 3,
+    units: 'imperial',
+    tagPrefix: 'A',
+    tagCounter: 1,
+    shapes: [], // Each shape stores: endpoints [x1,y1],[x2,y2], value, callout [cx,cy], leaderAnchor (parametric t), style
+    selectedShape: null,
+    dragging: null,
+    image: null,
+    imageNaturalSize: {w: 0, h: 0},
+    zoom: 1,
+    history: [],
+    measurementHistory: [], // Running list of measurements from laser/manual
+    bluetooth: {device: null, connected: false, measuring: false, autoConnect: false},
+    contextMenuVisible: false,
+    keypadVisible: false,
+    sourceChooserVisible: false
+  };
+
+  // Elements
+  const homeScreen = document.getElementById('homeScreen');
+  const appInterface = document.getElementById('appInterface');
+  const myDevicesScreen = document.getElementById('myDevicesScreen');
+  const sideMenu = document.getElementById('sideMenu');
+  const menuOverlay = document.getElementById('menuOverlay');
+  const contextMenu = document.getElementById('contextMenu');
+  const measurementKeypad = document.getElementById('measurementKeypad');
+  const sourceChooser = document.getElementById('sourceChooser');
+  
+  const imageCanvas = document.getElementById('imageCanvas');
+  const drawCanvas = document.getElementById('drawCanvas');
+  const container = document.getElementById('canvasContainer');
+  const imgCtx = imageCanvas.getContext('2d');
+  const drawCtx = drawCanvas.getContext('2d');
+
+  // Initialize
+  loadSettings();
+  setupEventListeners();
+  showScreen('home');
+
+  function setupEventListeners() {
+    // Home screen
+    document.getElementById('homeMenuBtn').addEventListener('click', () => toggleSideMenu(true));
+    document.getElementById('sketchOnPhotoCard').addEventListener('click', () => showSourceChooser());
+    document.getElementById('organiserCard').addEventListener('click', () => {
+      // TODO: Implement organiser
+      alert('Organiser feature coming soon');
+    });
+
+    // Side menu
+    document.getElementById('sideMenuClose').addEventListener('click', () => toggleSideMenu(false));
+    document.getElementById('menuSketchPhoto').addEventListener('click', () => {
+      toggleSideMenu(false);
+      showSourceChooser();
+    });
+    document.getElementById('menuOrganiser').addEventListener('click', () => {
+      toggleSideMenu(false);
+      alert('Organiser feature coming soon');
+    });
+    document.getElementById('menuMyDevices').addEventListener('click', () => {
+      toggleSideMenu(false);
+      showScreen('devices');
+    });
+    document.getElementById('menuSettings').addEventListener('click', () => {
+      toggleSideMenu(false);
+      alert('Settings feature coming soon');
+    });
+
+    menuOverlay.addEventListener('click', () => toggleSideMenu(false));
+
+    // App interface
+    document.getElementById('emrynLogo').addEventListener('click', () => toggleSideMenu(true));
+    document.getElementById('backBtn').addEventListener('click', () => showScreen('home'));
+    document.getElementById('undoBtn').addEventListener('click', undo);
+    document.getElementById('exportBtn').addEventListener('click', exportImage);
+    document.getElementById('newBtn').addEventListener('click', () => showSourceChooser());
+
+    // Tools
+    document.getElementById('lineToolBtn').addEventListener('click', () => setTool('line'));
+    document.getElementById('manualMeasureBtn').addEventListener('click', () => showMeasurementKeypad());
+
+    // Laser control
+    document.getElementById('laserBtn').addEventListener('click', handleLaserClick);
+
+    // Context menu
+    document.getElementById('contextEdit').addEventListener('click', () => {
+      hideContextMenu();
+      showMeasurementKeypad();
+    });
+    document.getElementById('contextDuplicate').addEventListener('click', () => {
+      hideContextMenu();
+      duplicateSelected();
+    });
+    document.getElementById('contextAddText').addEventListener('click', () => {
+      hideContextMenu();
+      addTextToSelected();
+    });
+    document.getElementById('contextDelete').addEventListener('click', () => {
+      hideContextMenu();
+      deleteSelected();
+    });
+
+    // Source chooser
+    document.getElementById('chooserCamera').addEventListener('click', () => {
+      hideSourceChooser();
+      openCamera();
+    });
+    document.getElementById('chooserGallery').addEventListener('click', () => {
+      hideSourceChooser();
+      document.getElementById('fileInput').click();
+    });
+    document.getElementById('chooserPdf').addEventListener('click', () => {
+      hideSourceChooser();
+      document.getElementById('pdfInput').click();
+    });
+    document.getElementById('chooserCancel').addEventListener('click', hideSourceChooser);
+
+    // File inputs
+    document.getElementById('fileInput').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) loadImageFile(file);
+    });
+
+    document.getElementById('pdfInput').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) loadPdfFile(file);
+    });
+
+    // Measurement keypad
+    document.getElementById('keypadClose').addEventListener('click', hideMeasurementKeypad);
+    document.getElementById('keypadCancel').addEventListener('click', hideMeasurementKeypad);
+    document.getElementById('keypadApply').addEventListener('click', applyManualMeasurement);
+
+    // My Devices screen
+    document.getElementById('devicesBack').addEventListener('click', () => showScreen('home'));
+    document.getElementById('connectDeviceBtn').addEventListener('click', connectBluetooth);
+    document.getElementById('disconnectDeviceBtn').addEventListener('click', disconnectBluetooth);
+    document.getElementById('autoConnectToggle').addEventListener('click', toggleAutoConnect);
+
+    // History
+    document.getElementById('clearHistoryBtn').addEventListener('click', clearMeasurementHistory);
+
+    // Canvas interactions - CRITICAL: Preserve callout dragging behavior
+    setupCanvasEvents();
+
+    // Hide overlays when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!contextMenu.contains(e.target) && !e.target.closest('#drawCanvas')) {
+        hideContextMenu();
+      }
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        undo();
+      }
+      if (e.key === 'Delete') {
+        deleteSelected();
+      }
+      if (e.key === 'Escape') {
+        hideContextMenu();
+        hideMeasurementKeypad();
+        hideSourceChooser();
+      }
+    });
+  }
+
+  function showScreen(screen) {
+    state.currentScreen = screen;
+    
+    homeScreen.classList.toggle('hidden', screen !== 'home');
+    appInterface.classList.toggle('hidden', screen !== 'app');
+    myDevicesScreen.classList.toggle('visible', screen === 'devices');
+    
+    if (screen === 'app') {
+      setTimeout(() => {
+        initCanvas();
+        fitToScreen();
+      }, 100);
+    }
+  }
+
+  function toggleSideMenu(show) {
+    sideMenu.classList.toggle('open', show);
+    menuOverlay.classList.toggle('visible', show);
+  }
+
+  function showSourceChooser() {
+    sourceChooser.classList.add('visible');
+    state.sourceChooserVisible = true;
+  }
+
+  function hideSourceChooser() {
+    sourceChooser.classList.remove('visible');
+    state.sourceChooserVisible = false;
+  }
+
+  function showMeasurementKeypad() {
+    measurementKeypad.classList.add('visible');
+    state.keypadVisible = true;
+    
+    // Clear inputs
+    document.getElementById('feetInput').value = '';
+    document.getElementById('inchesInput').value = '';
+    document.getElementById('numInput').value = '';
+    document.getElementById('denomInput').value = '8';
+  }
+
+  function hideMeasurementKeypad() {
+    measurementKeypad.classList.remove('visible');
+    state.keypadVisible = false;
+  }
+
+  function setTool(tool) {
+    state.tool = tool;
+    // Visual feedback for active tool
+    document.getElementById('lineToolBtn').style.background = tool === 'line' ? 'var(--accent)' : '';
+    document.getElementById('lineToolBtn').style.color = tool === 'line' ? '#fff' : '';
+  }
+
+  // CRITICAL: Preserve measurement leader-line behavior as specified
+  function setupCanvasEvents() {
+    let isDrawing = false;
+    let startPoint = null;
+    let lastTouch = 0;
+
+    drawCanvas.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      const point = getCanvasPoint(e);
+      const now = Date.now();
+
+      // Double-tap to fit
+      if (now - lastTouch < 300) {
+        fitToScreen();
+        return;
+      }
+      lastTouch = now;
+
+      if (state.tool === 'line') {
+        // Check if clicking on a callout for dragging (PRESERVE THIS BEHAVIOR)
+        const calloutHit = findCalloutHit(point);
+        if (calloutHit) {
+          state.selectedShape = calloutHit.id;
+          state.dragging = 'callout';
+          hideContextMenu();
+          return;
+        }
+
+        // Check if clicking on a line for selection
+        const lineHit = findLineHit(point);
+        if (lineHit) {
+          state.selectedShape = lineHit.id;
+          showContextMenu(e.clientX, e.clientY);
+          redraw();
+          return;
+        }
+
+        // Start drawing new line
+        isDrawing = true;
+        startPoint = point;
+        hideContextMenu();
+        state.selectedShape = null;
+      }
+    });
+
+    drawCanvas.addEventListener('pointermove', (e) => {
+      if (!isDrawing && !state.dragging) return;
+      
+      e.preventDefault();
+      const point = getCanvasPoint(e);
+
+      if (isDrawing && startPoint) {
+        drawPreview(startPoint, point);
+      } else if (state.dragging === 'callout') {
+        // CRITICAL: Preserve callout dragging behavior
+        handleCalloutDrag(point);
+      }
+    });
+
+    drawCanvas.addEventListener('pointerup', (e) => {
+      if (isDrawing && startPoint) {
+        const point = getCanvasPoint(e);
+        addMeasurementLine(startPoint, point);
+        isDrawing = false;
+        startPoint = null;
+      }
+      state.dragging = null;
+    });
+
+    // Pinch zoom
+    let initialDistance = 0;
+    let initialZoom = 1;
+    
+    drawCanvas.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2) {
+        const touch1 = e.touches[0];
+        const touch2 = e.touches[1];
+        initialDistance = Math.hypot(
+          touch1.clientX - touch2.clientX,
+          touch1.clientY - touch2.clientY
+        );
+        initialZoom = state.zoom;
+      }
+    });
+
+    drawCanvas.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const touch1 = e.touches[0];
+        const touch2 = e.touches[1];
+        const currentDistance = Math.hypot(
+          touch1.clientX - touch2.clientX,
+          touch1.clientY - touch2.clientY
+        );
+
+        if (initialDistance > 0) {
+          const scale = currentDistance / initialDistance;
+          const newZoom = Math.max(0.5, Math.min(3, initialZoom * scale));
+          adjustZoom(newZoom / state.zoom);
+        }
+      }
+    });
+  }
+
+  function getCanvasPoint(e) {
+    const rect = drawCanvas.getBoundingClientRect();
+    const scaleX = drawCanvas.width / rect.width;
+    const scaleY = drawCanvas.height / rect.height;
+    
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY
+    };
+  }
+
+  // CRITICAL: Preserve callout detection and dragging
+  function findCalloutHit(point) {
+    for (const shape of [...state.shapes].reverse()) {
+      if (shape.callout && distance(point, shape.callout) < 30) {
+        return shape;
+      }
+    }
+    return null;
+  }
+
+  function findLineHit(point) {
+    for (const shape of [...state.shapes].reverse()) {
+      const lineDistance = distanceToLine(point, shape.p1, shape.p2);
+      if (lineDistance < Math.max(15, shape.width + 5)) {
+        return shape;
+      }
+    }
+    return null;
+  }
+
+  // CRITICAL: Preserve callout dragging behavior exactly as specified
+  function handleCalloutDrag(point) {
+    const shape = getSelectedShape();
+    if (!shape) return;
+
+    // Update callout position (cx, cy only)
+    shape.callout = { x: point.x, y: point.y };
+    
+    // Recompute leaderAnchor (parametric t) to nearest perpendicular on main line
+    const t = getParametricT(shape.callout, shape.p1, shape.p2);
+    shape.leaderAnchor = Math.max(0, Math.min(1, t));
+    
+    // Value and endpoints unchanged per spec
+    redraw();
+  }
+
+  function getParametricT(point, lineStart, lineEnd) {
+    const A = point.x - lineStart.x;
+    const B = point.y - lineStart.y;
+    const C = lineEnd.x - lineStart.x;
+    const D = lineEnd.y - lineStart.y;
+    const dot = A * C + B * D;
+    const lenSq = C * C + D * D;
+    return lenSq === 0 ? 0 : dot / lenSq;
+  }
+
+  function drawPreview(start, end) {
+    redraw();
+    drawCtx.save();
+    drawCtx.strokeStyle = state.activeColor;
+    drawCtx.lineWidth = state.lineWidth;
+    drawCtx.setLineDash([8, 4]);
+    drawCtx.beginPath();
+    drawCtx.moveTo(start.x, start.y);
+    drawCtx.lineTo(end.x, end.y);
+    drawCtx.stroke();
+    drawCtx.restore();
+  }
+
+  function addMeasurementLine(p1, p2) {
+    const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+    if (dist < 10) return;
+
+    saveToHistory();
+    
+    const midpoint = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+    const shape = {
+      id: generateId(),
+      p1: { ...p1 },
+      p2: { ...p2 },
+      value: null, // No measurement initially
+      callout: { x: midpoint.x + 50, y: midpoint.y - 30 }, // Default callout position
+      leaderAnchor: 0.5, // Parametric t on main dimension line (middle initially)
+      color: state.activeColor,
+      width: state.lineWidth,
+      tag: generateTag(),
+      units: state.units,
+      description: ''
+    };
+
+    state.shapes.push(shape);
+    state.selectedShape = shape.id;
+    redraw();
+  }
+
+  function redraw() {
+    drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+    
+    for (const shape of state.shapes) {
+      drawMeasurementLine(shape);
+    }
+  }
+
+  // CRITICAL: Preserve exact rendering behavior for callouts and dashed leaders
+  function drawMeasurementLine(shape) {
+    const isSelected = shape.id === state.selectedShape;
+    
+    // Draw main dimension line
+    drawCtx.save();
+    drawCtx.strokeStyle = shape.color;
+    drawCtx.lineWidth = shape.width;
+    drawCtx.lineCap = 'round';
+    drawCtx.beginPath();
+    drawCtx.moveTo(shape.p1.x, shape.p1.y);
+    drawCtx.lineTo(shape.p2.x, shape.p2.y);
+    drawCtx.stroke();
+    
+    // Draw end caps (arrows)
+    drawEndCap(shape.p1, shape.p2, shape.color, shape.width);
+    drawEndCap(shape.p2, shape.p1, shape.color, shape.width);
+    
+    // Draw tag on line
+    drawTag(shape);
+    
+    // CRITICAL: Draw callout with dashed leader if measurement exists
+    if (shape.value && shape.callout) {
+      drawMeasurementCallout(shape);
+    }
+    
+    // Selection handles only on callout if selected
+    if (isSelected && shape.callout) {
+      drawCalloutSelection(shape.callout);
+    }
+    
+    drawCtx.restore();
+  }
+
+  function drawEndCap(point, otherPoint, color, width) {
+    const angle = Math.atan2(point.y - otherPoint.y, point.x - otherPoint.x);
+    
+    drawCtx.save();
+    drawCtx.translate(point.x, point.y);
+    drawCtx.rotate(angle);
+    drawCtx.fillStyle = color;
+    
+    drawCtx.beginPath();
+    drawCtx.moveTo(0, 0);
+    drawCtx.lineTo(-12, -6);
+    drawCtx.lineTo(-12, 6);
+    drawCtx.closePath();
+    drawCtx.fill();
+    
+    drawCtx.restore();
+  }
+
+  function drawTag(shape) {
+    const center = {
+      x: (shape.p1.x + shape.p2.x) / 2,
+      y: (shape.p1.y + shape.p2.y) / 2
+    };
+    
+    const dx = shape.p2.x - shape.p1.x;
+    const dy = shape.p2.y - shape.p1.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len;
+    const ny = dx / len;
+    
+    const tagPos = {
+      x: center.x + nx * 20,
+      y: center.y + ny * 20
+    };
+    
+    drawBadge(shape.tag, tagPos, shape.color);
+  }
+
+  // CRITICAL: Preserve exact callout and dashed leader rendering
+  function drawMeasurementCallout(shape) {
+    if (!shape.callout || !shape.value) return;
+    
+    // Calculate leader anchor point using parametric t
+    const anchorX = shape.p1.x + shape.leaderAnchor * (shape.p2.x - shape.p1.x);
+    const anchorY = shape.p1.y + shape.leaderAnchor * (shape.p2.y - shape.p1.y);
+    const anchorPoint = { x: anchorX, y: anchorY };
+    
+    // Draw dashed leader line (REQUIRED as default per spec)
+    drawCtx.save();
+    drawCtx.strokeStyle = shape.color;
+    drawCtx.lineWidth = 1;
+    drawCtx.setLineDash([6, 4]);
+    drawCtx.beginPath();
+    drawCtx.moveTo(shape.callout.x, shape.callout.y);
+    drawCtx.lineTo(anchorPoint.x, anchorPoint.y);
+    drawCtx.stroke();
+    drawCtx.setLineDash([]);
+    drawCtx.restore();
+    
+    // Draw callout bubble with measurement value
+    const measurementText = formatMeasurement(shape.value, shape.units);
+    drawCalloutBubble(measurementText, shape.callout);
+  }
+
+  function drawCalloutBubble(text, pos) {
+    drawCtx.save();
+    drawCtx.font = '13px system-ui';
+    drawCtx.textAlign = 'center';
+    drawCtx.textBaseline = 'middle';
+    
+    const metrics = drawCtx.measureText(text);
+    const w = metrics.width + 16;
+    const h = 28;
+    
+    // Bubble background (above drawing geometry per spec)
+    drawCtx.fillStyle = 'rgba(18, 20, 27, 0.9)';
+    drawCtx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    drawCtx.lineWidth = 1;
+    drawCtx.beginPath();
+    drawCtx.roundRect(pos.x - w/2, pos.y - h/2, w, h, 12);
+    drawCtx.fill();
+    drawCtx.stroke();
+    
+    // Text
+    drawCtx.fillStyle = '#fff';
+    drawCtx.fillText(text, pos.x, pos.y);
+    
+    drawCtx.restore();
+  }
+
+  function drawCalloutSelection(callout) {
+    drawCtx.save();
+    drawCtx.fillStyle = 'rgba(0, 64, 37, 0.2)';
+    drawCtx.strokeStyle = 'var(--accent)';
+    drawCtx.lineWidth = 2;
+    
+    drawCtx.beginPath();
+    drawCtx.arc(callout.x, callout.y, 12, 0, Math.PI * 2);
+    drawCtx.fill();
+    drawCtx.stroke();
+    
+    drawCtx.restore();
+  }
+
+  function drawBadge(text, pos, color) {
+    drawCtx.save();
+    drawCtx.font = '11px system-ui';
+    drawCtx.textAlign = 'center';
+    drawCtx.textBaseline = 'middle';
+    
+    const metrics = drawCtx.measureText(text);
+    const w = metrics.width + 12;
+    const h = 20;
+    
+    drawCtx.fillStyle = color;
+    drawCtx.beginPath();
+    drawCtx.roundRect(pos.x - w/2, pos.y - h/2, w, h, 10);
+    drawCtx.fill();
+    
+    const luminance = getLuminance(color);
+    drawCtx.fillStyle = luminance > 0.5 ? '#000' : '#fff';
+    drawCtx.fillText(text, pos.x, pos.y);
+    
+    drawCtx.restore();
+  }
+
+  function showContextMenu(x, y) {
+    contextMenu.style.left = Math.min(x, window.innerWidth - 180) + 'px';
+    contextMenu.style.top = Math.min(y, window.innerHeight - 160) + 'px';
+    contextMenu.classList.add('visible');
+    state.contextMenuVisible = true;
+  }
+
+  function hideContextMenu() {
+    contextMenu.classList.remove('visible');
+    state.contextMenuVisible = false;
+  }
+
+  function handleLaserClick() {
+    if (state.bluetooth.connected) {
+      takeMeasurement();
+    } else {
+      showScreen('devices');
+    }
+  }
+
+  function takeMeasurement() {
+    if (!state.bluetooth.connected) return;
+
+    state.bluetooth.measuring = true;
+    document.getElementById('laserBtn').classList.add('measuring');
+    document.getElementById('laserStatus').textContent = 'MEASURING';
+    
+    playBeep();
+    
+    setTimeout(() => {
+      const measurement = { value: 102.5, units: 'imperial' }; // 8' 6.5" simulation
+      handleMeasurement(measurement);
+      stopMeasurement();
+    }, 1500);
+  }
+
+  function stopMeasurement() {
+    state.bluetooth.measuring = false;
+    document.getElementById('laserBtn').classList.remove('measuring');
+    document.getElementById('laserStatus').textContent = 'READY';
+  }
+
+  function handleMeasurement(measurement) {
+    // Add to history
+    addToMeasurementHistory(measurement);
+    
+    // Apply to selected shape or create confirmation dialog
+    const selected = getSelectedShape();
+    if (selected) {
+      if (selected.value) {
+        // Confirmation dialog for overwrite per spec
+        if (confirm(`Overwrite existing measurement "${formatMeasurement(selected.value, selected.units)}" with "${formatMeasurement(measurement.value, measurement.units)}"?`)) {
+          applyMeasurementToShape(selected, measurement);
+        }
+      } else {
+        applyMeasurementToShape(selected, measurement);
+      }
+    }
+  }
+
+  function applyMeasurementToShape(shape, measurement) {
+    // CRITICAL: Only update value and units, preserve callout position and endpoints
+    shape.value = measurement.value;
+    shape.units = measurement.units;
+    
+    // Ensure callout exists
+    if (!shape.callout) {
+      const midpoint = { x: (shape.p1.x + shape.p2.x) / 2, y: (shape.p1.y + shape.p2.y) / 2 };
+      shape.callout = { x: midpoint.x + 50, y: midpoint.y - 30 };
+      shape.leaderAnchor = 0.5;
+    }
+    
+    redraw();
+  }
+
+  function applyManualMeasurement() {
+    const feet = parseFloat(document.getElementById('feetInput').value) || 0;
+    const inches = parseFloat(document.getElementById('inchesInput').value) || 0;
+    const numerator = parseFloat(document.getElementById('numInput').value) || 0;
+    const denominator = parseFloat(document.getElementById('denomInput').value) || 1;
+    
+    // Convert to total inches with fraction normalization
+    let totalInches = feet * 12 + inches + numerator / denominator;
+    
+    // Normalize: 12+ inches should increment feet
+    if (totalInches >= 12) {
+      const extraFeet = Math.floor(totalInches / 12);
+      totalInches = totalInches % 12;
+    }
+    
+    const measurement = { value: feet * 12 + inches + numerator / denominator, units: 'imperial' };
+    
+    handleMeasurement(measurement);
+    hideMeasurementKeypad();
+  }
+
+  function addToMeasurementHistory(measurement) {
+    const formattedValue = formatMeasurement(measurement.value, measurement.units);
+    
+    // Avoid duplicates
+    if (!state.measurementHistory.some(h => h.formatted === formattedValue)) {
+      state.measurementHistory.unshift({
+        ...measurement,
+        formatted: formattedValue,
+        timestamp: Date.now()
+      });
+      
+      // Keep last 10 measurements
+      if (state.measurementHistory.length > 10) {
+        state.measurementHistory.pop();
+      }
+      
+      updateHistoryDisplay();
+    }
+  }
+
+  function updateHistoryDisplay() {
+    const historyList = document.getElementById('historyList');
+    
+    if (state.measurementHistory.length === 0) {
+      historyList.innerHTML = '<div style="color: var(--sub); font-size: 11px; text-align: center; width: 100%;">Measurements from laser or manual entry will appear here</div>';
+      return;
+    }
+    
+    historyList.innerHTML = '';
+    
+    state.measurementHistory.forEach(measurement => {
+      const item = document.createElement('div');
+      item.className = 'history-item';
+      item.textContent = measurement.formatted;
+      
+      item.addEventListener('click', () => {
+        const selected = getSelectedShape();
+        if (selected) {
+          if (selected.value && !confirm(`Apply "${measurement.formatted}" to selected line?`)) {
+            return;
+          }
+          applyMeasurementToShape(selected, measurement);
+        } else {
+          alert('Select a line first to apply this measurement');
+        }
+      });
+      
+      historyList.appendChild(item);
+    });
+  }
+
+  function clearMeasurementHistory() {
+    if (confirm('Clear all measurement history?')) {
+      state.measurementHistory = [];
+      updateHistoryDisplay();
+    }
+  }
+
+  function formatMeasurement(value, units) {
+    if (units === 'imperial') {
+      const sign = value < 0 ? '-' : '';
+      value = Math.abs(value);
+      const feet = Math.floor(value / 12);
+      const remainingInches = value - feet * 12;
+      const wholeInches = Math.floor(remainingInches);
+      const fraction = remainingInches - wholeInches;
+      
+      const denom = 16;
+      let num = Math.round(fraction * denom);
+      
+      if (num === denom) {
+        return `${sign}${feet}' ${wholeInches + 1}"`;
+      } else if (num === 0) {
+        return `${sign}${feet}' ${wholeInches}"`;
+      } else {
+        // Reduce fraction
+        const gcd = (a, b) => b === 0 ? a : gcd(b, a % b);
+        const divisor = gcd(num, denom);
+        return `${sign}${feet}' ${wholeInches}-${num/divisor}/${denom/divisor}"`;
+      }
+    } else {
+      return `${Math.round(value)} mm`;
+    }
+  }
+
+  function duplicateSelected() {
+    const shape = getSelectedShape();
+    if (!shape) return;
+    
+    saveToHistory();
+    
+    const newShape = {
+      ...shape,
+      id: generateId(),
+      tag: generateTag(),
+      p1: { x: shape.p1.x + 20, y: shape.p1.y + 20 },
+      p2: { x: shape.p2.x + 20, y: shape.p2.y + 20 },
+      callout: shape.callout ? { x: shape.callout.x + 20, y: shape.callout.y + 20 } : null
+    };
+    
+    state.shapes.push(newShape);
+    state.selectedShape = newShape.id;
+    redraw();
+  }
+
+  function addTextToSelected() {
+    const text = prompt('Enter text:');
+    if (text) {
+      const shape = getSelectedShape();
+      if (shape) {
+        shape.description = text;
+        redraw();
+      }
+    }
+  }
+
+  function deleteSelected() {
+    if (!state.selectedShape) return;
+    
+    saveToHistory();
+    state.shapes = state.shapes.filter(s => s.id !== state.selectedShape);
+    state.selectedShape = null;
+    redraw();
+  }
+
+  function undo() {
+    if (state.history.length === 0) return;
+    
+    const previousState = state.history.pop();
+    state.shapes = JSON.parse(JSON.stringify(previousState));
+    state.selectedShape = null;
+    redraw();
+  }
+
+  function saveToHistory() {
+    if (state.history.length >= 20) {
+      state.history.shift();
+    }
+    state.history.push(JSON.parse(JSON.stringify(state.shapes)));
+  }
+
+  async function openCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' }
+      });
+
+      const cameraOverlay = document.createElement('div');
+      cameraOverlay.style.cssText = `
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: black; z-index: 600;
+        display: flex; flex-direction: column;
+      `;
+
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      video.autoplay = true;
+      video.playsInline = true;
+      video.style.cssText = 'flex: 1; width: 100%; object-fit: cover;';
+
+      const controls = document.createElement('div');
+      controls.style.cssText = `
+        position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+        display: flex; gap: 20px; align-items: center;
+      `;
+
+      const captureBtn = document.createElement('button');
+      captureBtn.innerHTML = '📷';
+      captureBtn.style.cssText = `
+        width: 70px; height: 70px; border-radius: 50%; background: var(--accent); color: white;
+        border: 4px solid white; font-size: 24px; cursor: pointer;
+      `;
+
+      const retakeBtn = document.createElement('button');
+      retakeBtn.innerHTML = '🔄';
+      retakeBtn.style.cssText = `
+        width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,0.2); color: white;
+        border: 1px solid rgba(255,255,255,0.3); font-size: 20px; cursor: pointer; display: none;
+      `;
+
+      const usePhotoBtn = document.createElement('button');
+      usePhotoBtn.innerHTML = '✓';
+      usePhotoBtn.style.cssText = `
+        width: 50px; height: 50px; border-radius: 50%; background: var(--ok); color: white;
+        border: none; font-size: 20px; cursor: pointer; display: none;
+      `;
+
+      const closeBtn = document.createElement('button');
+      closeBtn.innerHTML = '✕';
+      closeBtn.style.cssText = `
+        position: absolute; top: 20px; right: 20px; width: 40px; height: 40px;
+        border-radius: 50%; background: rgba(0,0,0,0.6); color: white;
+        border: none; font-size: 20px; cursor: pointer;
+      `;
+
+      controls.appendChild(retakeBtn);
+      controls.appendChild(captureBtn);
+      controls.appendChild(usePhotoBtn);
+      cameraOverlay.appendChild(video);
+      cameraOverlay.appendChild(controls);
+      cameraOverlay.appendChild(closeBtn);
+      document.body.appendChild(cameraOverlay);
+
+      let capturedImageData = null;
+
+      const cleanup = () => {
+        stream.getTracks().forEach(track => track.stop());
+        cameraOverlay.remove();
+      };
+
+      captureBtn.onclick = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 1920;
+        canvas.height = video.videoHeight || 1080;
+        
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0);
+        
+        capturedImageData = canvas.toDataURL('image/jpeg', 0.9);
+        
+        // Show captured image
+        video.style.display = 'none';
+        const img = document.createElement('img');
+        img.src = capturedImageData;
+        img.style.cssText = 'flex: 1; width: 100%; height: 100%; object-fit: cover;';
+        cameraOverlay.insertBefore(img, controls);
+        
+        // Show retake/use buttons
+        captureBtn.style.display = 'none';
+        retakeBtn.style.display = 'block';
+        usePhotoBtn.style.display = 'block';
+      };
+
+      retakeBtn.onclick = () => {
+        cameraOverlay.querySelector('img')?.remove();
+        video.style.display = 'block';
+        captureBtn.style.display = 'block';
+        retakeBtn.style.display = 'none';
+        usePhotoBtn.style.display = 'none';
+        capturedImageData = null;
+      };
+
+      usePhotoBtn.onclick = () => {
+        if (capturedImageData) {
+          const img = new Image();
+          img.onload = () => {
+            state.image = img;
+            state.imageNaturalSize = { w: img.naturalWidth, h: img.naturalHeight };
+            showScreen('app');
+            setTimeout(() => fitToScreen(), 100);
+            cleanup();
+          };
+          img.src = capturedImageData;
+        }
+      };
+
+      closeBtn.onclick = cleanup;
+
+    } catch (err) {
+      console.error('Camera access failed:', err);
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.capture = 'environment';
+      input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (file) loadImageFile(file);
+      };
+      input.click();
+    }
+  }
+
+  function loadImageFile(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        state.image = img;
+        state.imageNaturalSize = { w: img.naturalWidth, h: img.naturalHeight };
+        showScreen('app');
+        setTimeout(() => fitToScreen(), 100);
+      };
+      img.onerror = () => {
+        alert('Failed to load image. Please try a different format.');
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function loadPdfFile(file) {
+    // For now, just show message - PDF loading requires additional libraries
+    alert('PDF import feature will be implemented in a future update.');
+  }
+
+  async function connectBluetooth() {
+    const connectBtn = document.getElementById('connectDeviceBtn');
+    const disconnectBtn = document.getElementById('disconnectDeviceBtn');
+    const deviceStatus = document.getElementById('deviceStatus');
+
+    connectBtn.disabled = true;
+    connectBtn.textContent = 'Connecting...';
+    deviceStatus.textContent = 'Connecting...';
+
+    try {
+      if (!navigator.bluetooth) {
+        throw new Error('Bluetooth not supported. Requires HTTPS.');
+      }
+
+      const device = await navigator.bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: ['generic_access']
+      });
+
+      const server = await device.gatt.connect();
+      state.bluetooth.device = device;
+      state.bluetooth.connected = true;
+      
+      connectBtn.disabled = true;
+      disconnectBtn.disabled = false;
+      connectBtn.textContent = 'Connected';
+      deviceStatus.textContent = 'Connected';
+      deviceStatus.classList.add('connected');
+      
+      document.getElementById('laserBtn').classList.add('connected');
+      document.getElementById('laserStatus').textContent = 'READY';
+      
+      device.addEventListener('gattserverdisconnected', () => {
+        state.bluetooth.connected = false;
+        connectBtn.disabled = false;
+        disconnectBtn.disabled = true;
+        connectBtn.textContent = 'Connect';
+        deviceStatus.textContent = 'Not connected';
+        deviceStatus.classList.remove('connected');
+        document.getElementById('laserBtn').classList.remove('connected', 'measuring');
+        document.getElementById('laserStatus').textContent = 'OFF';
+      });
+
+      // Try to find measurement services
+      const services = await server.getPrimaryServices();
+      for (const service of services) {
+        try {
+          const characteristics = await service.getCharacteristics();
+          for (const char of characteristics) {
+            if (char.properties.notify) {
+              await char.startNotifications();
+              char.addEventListener('characteristicvaluechanged', handleBluetoothData);
+            }
+          }
+        } catch (err) {
+          console.warn('Service access failed:', err);
+        }
+      }
+      
+    } catch (err) {
+      console.error('Bluetooth failed:', err);
+      connectBtn.disabled = false;
+      connectBtn.textContent = 'Connect';
+      deviceStatus.textContent = `Error: ${err.message}`;
+      alert(`Bluetooth connection failed: ${err.message}`);
+    }
+  }
+
+  function disconnectBluetooth() {
+    if (state.bluetooth.device) {
+      state.bluetooth.device.gatt.disconnect();
+    }
+  }
+
+  function toggleAutoConnect() {
+    state.bluetooth.autoConnect = !state.bluetooth.autoConnect;
+    const toggle = document.getElementById('autoConnectToggle');
+    toggle.classList.toggle('active', state.bluetooth.autoConnect);
+    saveSettings();
+  }
+
+  function handleBluetoothData(event) {
+    const value = event.target.value;
+    let measurement = null;
+    
+    try {
+      const text = new TextDecoder().decode(value);
+      measurement = parseMeasurementText(text);
+    } catch (err) {
+      if (value.byteLength >= 2) {
+        const mm = value.getUint16(0, true);
+        measurement = { value: mm, units: 'metric' };
+      }
+    }
+    
+    if (measurement) {
+      playBeep();
+      handleMeasurement(measurement);
+      stopMeasurement();
+    }
+  }
+
+  function parseMeasurementText(text) {
+    text = text.trim().toLowerCase();
+    
+    const imperial = text.match(/(\d+)[\'\s]*(\d+(?:\.\d+)?)\s*(?:-\s*(\d+)\/(\d+))?/);
+    if (imperial) {
+      const ft = parseInt(imperial[1]) || 0;
+      const inches = parseFloat(imperial[2]) || 0;
+      const num = parseInt(imperial[3]) || 0;
+      const den = parseInt(imperial[4]) || 1;
+      const totalInches = ft * 12 + inches + num / den;
+      return { value: totalInches, units: 'imperial' };
+    }
+    
+    return null;
+  }
+
+  function exportImage() {
+    if (!state.image) {
+      alert('Please load an image first');
+      return;
+    }
+
+    // Prompt for title if not set
+    let title = prompt('Enter title for export:', 'Measurement_' + new Date().toISOString().slice(0, 10));
+    if (!title) return;
+
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = imageCanvas.width;
+    exportCanvas.height = imageCanvas.height;
+    
+    const ctx = exportCanvas.getContext('2d');
+    
+    // Draw image
+    ctx.drawImage(state.image, 0, 0, exportCanvas.width, exportCanvas.height);
+    
+    // Draw all measurement elements exactly as on screen
+    const originalCtx = drawCtx;
+    drawCtx = ctx; // Temporarily redirect drawing context
+    
+    for (const shape of state.shapes) {
+      drawMeasurementLine(shape);
+    }
+    
+    drawCtx = originalCtx; // Restore original context
+    
+    // Add branding overlay (company logo + timestamp)
+    addBrandingOverlay(ctx, exportCanvas.width, exportCanvas.height);
+    
+    exportCanvas.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = title + '.jpg';
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      // Show "Saved To" dialog
+      alert(`Saved to: ${title}.jpg\n\nFile downloaded to your device.`);
+    }, 'image/jpeg', 0.9);
+  }
+
+  function addBrandingOverlay(ctx, width, height) {
+    const timestamp = new Date().toLocaleDateString();
+    
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.font = '12px system-ui';
+    
+    // Company logo corner (top-right)
+    ctx.fillRect(width - 120, 10, 110, 30);
+    ctx.fillStyle = '#fff';
+    ctx.fillText('EMRYN', width - 110, 28);
+    
+    // Timestamp corner (bottom-left)
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(10, height - 40, 100, 30);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(timestamp, 20, height - 22);
+    
+    ctx.restore();
+  }
+
+  function adjustZoom(factor) {
+    state.zoom = Math.max(0.5, Math.min(3, state.zoom * factor));
+    container.style.transform = `scale(${state.zoom})`;
+  }
+
+  function fitToScreen() {
+    if (!state.image) {
+      drawPlaceholder();
+      return;
+    }
+
+    const main = document.querySelector('.main');
+    const containerRect = main.getBoundingClientRect();
+    const containerW = containerRect.width;
+    const containerH = containerRect.height;
+    const imgW = state.imageNaturalSize.w;
+    const imgH = state.imageNaturalSize.h;
+
+    const scale = Math.min(containerW / imgW, containerH / imgH, 1);
+    
+    const canvasW = Math.floor(imgW * scale);
+    const canvasH = Math.floor(imgH * scale);
+
+    imageCanvas.width = drawCanvas.width = canvasW;
+    imageCanvas.height = drawCanvas.height = canvasH;
+    
+    state.zoom = 1;
+    container.style.transform = 'scale(1)';
+    container.style.transformOrigin = '50% 50%';
+
+    drawImage();
+    redraw();
+  }
+
+  function drawImage() {
+    imgCtx.clearRect(0, 0, imageCanvas.width, imageCanvas.height);
+    if (state.image) {
+      imgCtx.drawImage(state.image, 0, 0, imageCanvas.width, imageCanvas.height);
+    } else {
+      drawPlaceholder();
+    }
+  }
+
+  function drawPlaceholder() {
+    const w = imageCanvas.width || 400;
+    const h = imageCanvas.height || 300;
+    
+    imgCtx.fillStyle = '#0b0e13';
+    imgCtx.fillRect(0, 0, w, h);
+    
+    imgCtx.strokeStyle = '#161a22';
+    imgCtx.lineWidth = 1;
+    
+    for (let x = 0; x < w; x += 40) {
+      imgCtx.beginPath();
+      imgCtx.moveTo(x, 0);
+      imgCtx.lineTo(x, h);
+      imgCtx.stroke();
+    }
+    
+    for (let y = 0; y < h; y += 40) {
+      imgCtx.beginPath();
+      imgCtx.moveTo(0, y);
+      imgCtx.lineTo(w, y);
+      imgCtx.stroke();
+    }
+
+    imgCtx.fillStyle = '#666';
+    imgCtx.font = '16px system-ui';
+    imgCtx.textAlign = 'center';
+    imgCtx.textBaseline = 'middle';
+    imgCtx.fillText('Select "Sketch on Photo" to begin', w/2, h/2);
+  }
+
+  function initCanvas() {
+    const main = document.querySelector('.main');
+    const rect = main.getBoundingClientRect();
+    imageCanvas.width = drawCanvas.width = rect.width;
+    imageCanvas.height = drawCanvas.height = rect.height;
+    drawPlaceholder();
+  }
+
+  // Utility functions
+  function distance(p1, p2) {
+    return Math.hypot(p2.x - p1.x, p2.y - p1.y);
+  }
+
+  function distanceToLine(point, lineStart, lineEnd) {
+    const A = point.x - lineStart.x;
+    const B = point.y - lineStart.y;
+    const C = lineEnd.x - lineStart.x;
+    const D = lineEnd.y - lineStart.y;
+
+    const dot = A * C + B * D;
+    const lenSq = C * C + D * D;
+    
+    if (lenSq === 0) return distance(point, lineStart);
+    
+    let param = dot / lenSq;
+    
+    let xx, yy;
+    if (param < 0) {
+      xx = lineStart.x;
+      yy = lineStart.y;
+    } else if (param > 1) {
+      xx = lineEnd.x;
+      yy = lineEnd.y;
+    } else {
+      xx = lineStart.x + param * C;
+      yy = lineStart.y + param * D;
+    }
+
+    return distance(point, {x: xx, y: yy});
+  }
+
+  function getSelectedShape() {
+    return state.shapes.find(s => s.id === state.selectedShape);
+  }
+
+  function generateId() {
+    return Date.now().toString(36) + Math.random().toString(36);
+  }
+
+  function generateTag() {
+    return state.tagPrefix + state.tagCounter++;
+  }
+
+  function getLuminance(hex) {
+    const rgb = parseInt(hex.slice(1), 16);
+    const r = (rgb >> 16) & 255;
+    const g = (rgb >> 8) & 255;
+    const b = rgb & 255;
+    return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  }
+
+  function playBeep() {
+    try {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.value = 800;
+      gainNode.gain.value = 0.1;
+      
+      oscillator.start();
+      setTimeout(() => {
+        oscillator.stop();
+        audioContext.close();
+      }, 150);
+    } catch (err) {
+      console.warn('Audio not supported');
+    }
+  }
+
+  function loadSettings() {
+    try {
+      const saved = localStorage.getItem('emrynMeasurementSettings');
+      if (saved) {
+        const settings = JSON.parse(saved);
+        state.bluetooth.autoConnect = settings.autoConnect || false;
+        updateAutoConnectUI();
+      }
+    } catch (err) {
+      console.warn('Failed to load settings');
+    }
+  }
+
+  function saveSettings() {
+    try {
+      const settings = {
+        autoConnect: state.bluetooth.autoConnect
+      };
+      localStorage.setItem('emrynMeasurementSettings', JSON.stringify(settings));
+    } catch (err) {
+      console.warn('Failed to save settings');
+    }
+  }
+
+  function updateAutoConnectUI() {
+    const toggle = document.getElementById('autoConnectToggle');
+    toggle.classList.toggle('active', state.bluetooth.autoConnect);
+  }
+
+  // Window resize handler
+  window.addEventListener('resize', () => {
+    if (state.currentScreen === 'app') {
+      setTimeout(fitToScreen, 100);
+    }
+  });
+
+  // Initialize
+  updateHistoryDisplay();
+  updateAutoConnectUI();
+})();
+</script>
+</body>
+</html>
